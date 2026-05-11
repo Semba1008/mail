@@ -5,5 +5,5 @@ export default async function handler(req, res) {
     .from('mails')
     .select('*')
 
-  res.status(200).json(data)
+  res.status(200).json({ data, error })
 }

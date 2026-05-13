@@ -21,7 +21,7 @@ export default function Home() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const res = await fetch("/api/projects");
+        const res = await fetch("/api/mails");
         const payload = await res.json();
         if (!payload.error) {
           const savedFavorites = JSON.parse(localStorage.getItem("favorites")) || [];

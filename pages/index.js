@@ -110,9 +110,6 @@ export default function Home() {
                         {project.content ? decodeHtml(project.content).substring(0, 40) + "..." : "---"}
                       </div>
 
-                      <div style={{ fontWeight: "bold" }}>【勤務形態】</div>
-                      <div>確認中</div>
-
                       <div style={{ fontWeight: "bold" }}>【場所】</div>
                       <div>{project.location || "確認中"}</div>
 

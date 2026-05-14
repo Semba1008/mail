@@ -302,7 +302,7 @@ export default function Home() {
                 <div style={{ marginTop: "20px", borderTop: "1px solid #edf2f7", paddingTop: "20px" }}>
                   {/* スキルフィルタ */}
                   {skillCategories.map((cat) => (
-                    <div key={cat.label} style={{ marginBottom: "20px" }}>
+                    <div key={cat.label} style={{ marginBottom: "10px" }}>
                       <div style={{ marginBottom: "10px", fontSize: "0.8rem", fontWeight: "bold", color: "#4a5568" }}>{cat.label}</div>
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                         {cat.skills.map(skill => (

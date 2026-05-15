@@ -144,28 +144,38 @@ export default function Home() {
   };
 
   // 駅名から候補を取得する関数
-  const fetchStations = async (name) => {
-    if (!name || name.length < 1) {
-      setStationSuggestions([]);
-      return;
-    }
+const fetchStations = async (name) => {
+  if (!name || name.length < 1) {
+    setStationSuggestions([]);
+    return;
+  }
 
-    // 駅名APIから候補を取得
-    setIsStationLoading(true);
-    try {
-      const res = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(name)}`);
-      const json = await res.json();
-      if (json?.response?.station) {
-        setStationSuggestions([...new Set(json.response.station.map((s) => s.name))].slice(0, 10));
-      } else {
-        setStationSuggestions([]);
-      }
-    } catch (err) {
+  // 駅名APIから候補を取得
+  setIsStationLoading(true);
+  try {
+    // APIのリクエスト（指定したキーワードを送信）
+    const res = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(name)}`);
+    const json = await res.json();
+
+    if (json?.response?.station) {
+      // 1. APIから返ってきた全データから駅名のみを抽出
+      // 2. その中から、入力された文字（name）が「含まれている」ものだけに絞り込む
+      const suggestions = json.response.station
+        .map((s) => s.name)
+        .filter((stationName) => stationName.includes(name)); // ★ここが部分一致のポイント
+
+      // 3. 重複を排除して上位10件をセット
+      setStationSuggestions([...new Set(suggestions)].slice(0, 10));
+    } else {
       setStationSuggestions([]);
-    } finally {
-      setIsStationLoading(false);
     }
-  };
+  } catch (err) {
+    console.error("駅名取得エラー:", err);
+    setStationSuggestions([]);
+  } finally {
+    setIsStationLoading(false);
+  }
+};
 
   // お気に入りの切り替え
   const toggleFavorite = (e, id) => {

@@ -56,6 +56,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState("all");
   const [favFilters, setFavFilters] = useState([]);
   const [historyIds, setHistoryIds] = useState([]);
+  const [readIds, setReadIds] = useState([]); // ★既読IDを管理するステート
   const projectsPerPage = 12;
 
   const prefectures = [
@@ -94,7 +95,11 @@ export default function Home() {
       if (payload && !payload.error) {
         const savedFavorites = JSON.parse(localStorage.getItem("favorites") || "[]");
         const savedHistory = JSON.parse(localStorage.getItem("history") || "[]");
+        const savedRead = JSON.parse(localStorage.getItem("readProjects") || "[]"); // ★既読データの読み込み
+        
         setHistoryIds(savedHistory);
+        setReadIds(savedRead); // ★ステートにセット
+
         const dataWithFavs = (payload.data || []).map((item) => ({
           ...item,
           favorite: savedFavorites.includes(item.id),
@@ -159,7 +164,6 @@ export default function Home() {
     return cats;
   };
 
-  // ★ 本文から募集人数を抽出するロジック
   const extractRecruitment = (content) => {
     if (!content) return "記載なし";
     const regex = /([0-9０-９]+|複数|若干)名(以上)?/;
@@ -200,47 +204,75 @@ export default function Home() {
   };
 
   // 案件カードコンポーネント
-  const ProjectCard = ({ project }) => (
-    <div style={{ backgroundColor: "#fff", borderRadius: "10px", padding: "25px", border: "1px solid #edf2f7", display: "flex", flexDirection: "column", position: "relative" }}>
-      <div style={{ fontSize: "0.7rem", color: "#a0aec0", marginBottom: "5px" }}>ID: {project.id}</div>
+  const ProjectCard = ({ project }) => {
+    const isRead = readIds.includes(project.id); // ★既読かどうか判定
 
-      <button onClick={() => toggleFavorite(project.id)} style={{ position: "absolute", top: "15px", right: "15px", background: "none", border: "none", cursor: "pointer", fontSize: "1.4rem", color: project.favorite ? "#ed8936" : "#cbd5e0" }}>{project.favorite ? "★" : "☆"}</button>
-      <h3 style={{ fontSize: "1rem", color: "#1a365d", marginBottom: "20px", fontWeight: "700", paddingRight: "25px" }}>{project.title}</h3>
-      <div style={{ fontSize: "0.85rem", flexGrow: 1 }}>
-        <div style={{ display: "flex", marginBottom: "8px" }}>
-          <span style={{ fontWeight: "bold", minWidth: "80px" }}>【場所】</span>
-          <span>{project.location || "記載なし"}</span>
+    return (
+      <div style={{ backgroundColor: "#fff", borderRadius: "10px", padding: "25px", border: "1px solid #edf2f7", display: "flex", flexDirection: "column", position: "relative" }}>
+        <div style={{ fontSize: "0.7rem", color: "#a0aec0", marginBottom: "5px" }}>ID: {project.id}</div>
+
+        {/* ★ 右上のアイコンエリア（既読ラベル + お気に入り） */}
+        <div style={{ position: "absolute", top: "15px", right: "15px", display: "flex", alignItems: "center", gap: "8px" }}>
+          {isRead && (
+            <span style={{ fontSize: "0.7rem", backgroundColor: "#e2e8f0", color: "#4a5568", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold" }}>
+              既読
+            </span>
+          )}
+          <button 
+            onClick={() => toggleFavorite(project.id)} 
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.4rem", color: project.favorite ? "#ed8936" : "#cbd5e0", padding: 0, lineHeight: 1 }}
+          >
+            {project.favorite ? "★" : "☆"}
+          </button>
         </div>
-        <div style={{ display: "flex", marginBottom: "8px" }}>
-          <span style={{ fontWeight: "bold", minWidth: "80px" }}>【期間】</span>
-          <span>{project.period || "記載なし"}</span>
+
+        <h3 style={{ fontSize: "1rem", color: "#1a365d", marginBottom: "20px", fontWeight: "700", paddingRight: "60px" }}>{project.title}</h3>
+        <div style={{ fontSize: "0.85rem", flexGrow: 1 }}>
+          <div style={{ display: "flex", marginBottom: "8px" }}>
+            <span style={{ fontWeight: "bold", minWidth: "80px" }}>【場所】</span>
+            <span>{project.location || "記載なし"}</span>
+          </div>
+          <div style={{ display: "flex", marginBottom: "8px" }}>
+            <span style={{ fontWeight: "bold", minWidth: "80px" }}>【期間】</span>
+            <span>{project.period || "記載なし"}</span>
+          </div>
+          <div style={{ display: "flex", marginBottom: "8px" }}>
+            <span style={{ fontWeight: "bold", minWidth: "80px" }}>【単価】</span>
+            <span>{project.price || "記載なし"}</span>
+          </div>
+          <div style={{ display: "flex" }}>
+            <span style={{ fontWeight: "bold", minWidth: "80px" }}>【募集人数】</span>
+            <span>{extractRecruitment(project.content)}</span>
+          </div>
         </div>
-        <div style={{ display: "flex", marginBottom: "8px" }}>
-          <span style={{ fontWeight: "bold", minWidth: "80px" }}>【単価】</span>
-          <span>{project.price || "記載なし"}</span>
-        </div>
-        <div style={{ display: "flex" }}>
-          <span style={{ fontWeight: "bold", minWidth: "80px" }}>【募集人数】</span>
-          <span>{extractRecruitment(project.content)}</span>
+        <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
+          <button onClick={() => {
+              setSelectedProject(project);
+              
+              // 履歴保存のロジック
+              const history = JSON.parse(localStorage.getItem("history") || "[]");
+              if (!history.includes(project.id)) {
+                const newHistory = [project.id, ...history].slice(0, 50);
+                localStorage.setItem("history", JSON.stringify(newHistory));
+                setHistoryIds(newHistory);
+              }
+
+              // ★既読保存のロジック
+              const reads = JSON.parse(localStorage.getItem("readProjects") || "[]");
+              if (!reads.includes(project.id)) {
+                const newReads = [...reads, project.id];
+                localStorage.setItem("readProjects", JSON.stringify(newReads));
+                setReadIds(newReads);
+              }
+            }} 
+            style={{ flex: 1, padding: "10px", backgroundColor: "#1a365d", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>
+            詳細を見る
+          </button>
+          <button onClick={() => deleteProject(project.id)} style={{ padding: "0 12px", borderRadius: "6px", border: "1px solid #fc8181", color: "#e53e3e", background: "#fff", cursor: "pointer" }}>削除</button>
         </div>
       </div>
-      <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
-        <button onClick={() => {
-            setSelectedProject(project);
-            const history = JSON.parse(localStorage.getItem("history") || "[]");
-            if (!history.includes(project.id)) {
-              const newHistory = [project.id, ...history].slice(0, 50);
-              localStorage.setItem("history", JSON.stringify(newHistory));
-              setHistoryIds(newHistory);
-            }
-          }} 
-          style={{ flex: 1, padding: "10px", backgroundColor: "#1a365d", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}>
-          詳細を見る
-        </button>
-        <button onClick={() => deleteProject(project.id)} style={{ padding: "0 12px", borderRadius: "6px", border: "1px solid #fc8181", color: "#e53e3e", background: "#fff", cursor: "pointer" }}>削除</button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{ backgroundColor: "#f7fafc", minHeight: "100vh", color: "#2d3748", fontFamily: "sans-serif" }}>

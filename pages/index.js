@@ -362,7 +362,15 @@ export default function Home() {
   // --- メインレンダリング (JSX) ---
   return (
     <div style={{ backgroundColor: "#f7fafc", minHeight: "100vh", color: "#2d3748", fontFamily: "sans-serif" }}>
-      {/* 共通グローバルナビゲーション - 背景色を白に変更し、下部に薄い境界線を追加 */}
+      {/* ぐるぐる用のアニメーションCSSをインライン定義 */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {/* 共通グローバルナビゲーション */}
       <nav style={{ backgroundColor: "#fff", position: "sticky", top: 0, zIndex: 100, borderBottom: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", height: "60px", padding: "0 20px", alignItems: "center" }}>
           <div style={{ marginRight: "30px", height: "35px", display: "flex", alignItems: "center" }}>
@@ -382,14 +390,12 @@ export default function Home() {
                   style={{ 
                     background: "none", 
                     border: "none", 
-                    // 選択中はカテゴリー色（#00bfa5）、非選択時はグレー系の文字色
                     color: isActive ? "#00bfa5" : "#4a5568", 
                     cursor: "pointer", 
                     fontWeight: "600", 
                     padding: "0 25px", 
                     height: "100%",
                     position: "relative",
-                    // 選択中に下線を表示するスタイル
                     borderBottom: isActive ? "3px solid #00bfa5" : "3px solid transparent",
                     boxSizing: "border-box",
                     transition: "all 0.2s ease"
@@ -488,8 +494,20 @@ export default function Home() {
             {viewMode === "all" ? "案件一覧" : viewMode === "applied" ? "応募済み案件" : viewMode === "favorites" ? "お気に入り案件" : "閲覧履歴"} ({filtered.length}件)
           </h2>
           
-          {/* リスト表示メイン制御 */}
-          {loading ? <div style={{ textAlign: "center", padding: "100px 0" }}>読み込み中...</div> : (
+          {/* リスト表示・読み込み制御 */}
+          {loading ? (
+            /* ローディング時の回転インジケーター（ぐるぐる） */
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "100px 0" }}>
+              <div style={{ 
+                width: "45px", 
+                height: "45px", 
+                border: "4px solid #cbd5e0", 
+                borderTop: "4px solid #00bfa5", 
+                borderRadius: "50%", 
+                animation: "spin 1s linear infinite" 
+              }} />
+            </div>
+          ) : (
             <>
               {filtered.length === 0 ? <div style={{ textAlign: "center", padding: "50px", color: "#718096" }}>該当する案件がありません。</div> : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "25px" }}>

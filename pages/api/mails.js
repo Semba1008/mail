@@ -15,7 +15,7 @@ export default async function handler(req, res) {
       // 1. 新しいテーブル構造に合わせて、projects_id に紐づく file_path (またはfile_url) を取得
       const { data: attachments, error: fetchError } = await supabase
         .from('attachments')
-        .select('file_path') // カラム名に合わせてfile_pathを指定 (file_urlの場合は書き換えてください)
+        .select('file_url') // カラム名に合わせてfile_urlを指定 (file_pathの場合は書き換えてください)
         .eq('projects_id', id);
 
       if (fetchError) {
@@ -23,9 +23,9 @@ export default async function handler(req, res) {
       } else if (attachments && attachments.length > 0) {
         // 2. 紐づくファイルがストレージにあれば一括削除
         const fileNames = attachments.map(file => {
-          if (!file.file_path) return null;
+          if (!file.file_url) return null;
           // フルパスやURLからファイル名（またはストレージ内パス）部分を抽出
-          const urlParts = file.file_path.split('/');
+          const urlParts = file.file_url.split('/');
           return urlParts[urlParts.length - 1];
         }).filter(Boolean);
 
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
   // ==========================================
   if (req.method === 'GET') {
     try {
-      // 実際のテーブルのカラム名 (id, file_name, file_path) に合わせて取得
+      // 実際のテーブルのカラム名 (id, file_name, file_url) に合わせて取得
       const { data, error } = await supabase
         .from('projects')
         .select(`
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
           attachments (
             id,
             file_name,
-            file_path
+            file_url
           )
         `)
         .order('created_at', { ascending: false });

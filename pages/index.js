@@ -577,7 +577,7 @@ export default function Home() {
                 {/* 🕒 【追加箇所2】検索履歴サジェスト付きの検索窓 */}
                 <input
                   type="text"
-                  placeholder="キーワード・駅名で検索 (Enterで履歴保存)"
+                  placeholder="キーワード・駅名で検索"
                   value={searchQuery}
                   onChange={(e) => { 
                     setSearchQuery(e.target.value); 

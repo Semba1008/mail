@@ -202,9 +202,9 @@ export default function Home() {
     });
   };
 
-  // 🟢 確実に開けるよう、直接ブラウザの別タブで開く安全な処理に変更しました
+  // 🟢 日本語や「★」「()」などの記号をサーバーが正しく認識できるURLに安全変換して別タブで開く処理
   const handleDownloadFile = (event, fileUrl) => {
-    event.stopPropagation(); // モーダルが閉じるのを防ぐ
+    event.stopPropagation();
 
     if (!fileUrl) {
       alert("ファイルURLが存在しません。");
@@ -212,11 +212,20 @@ export default function Home() {
     }
 
     try {
-      // 念のためURLのデコード・エンコード処理を入れてブラウザが認識しやすくする
-      const safeUrl = encodeURI(decodeURI(fileUrl));
+      // 一度完全にデコードして生の文字列に戻す
+      const decodedUrl = decodeURIComponent(decodeURI(fileUrl));
+      
+      // URLをベース部分とファイル名部分（末尾）に分解して、ファイル名部分だけを「超安全」に再エンコードする
+      // これにより、全角記号や日本語が含まれていてもサーバーが正しくファイルを特定できるようになります
+      const urlParts = decodedUrl.split("/");
+      const fileName = urlParts.pop();
+      const baseUrl = urlParts.join("/");
+      
+      const safeUrl = `${baseUrl}/${encodeURIComponent(fileName)}`;
       window.open(safeUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      console.error("ファイル展開エラー:", error);
+      console.error("URLエンコードエラー:", error);
+      // 万が一のフォールバック
       window.open(fileUrl, '_blank');
     }
   };
@@ -545,7 +554,7 @@ export default function Home() {
               return (
                 <button
                   key={button.id}
-                  onClick={() => { setFavFilters(button.id === "all" ? [] : favFilters.includes(button.id) ? favFilters.filter((id) => id !== button.id) : [...favFilters, button.id]); setCurrentPage(1); }}
+                  onClick={() => { setFavFilters(button.id === "all" ? [] : favFilters.includes(button.id) ? favFilters.filter((id) => id !== button.id) : [...favFilters, bundle.id]); setCurrentPage(1); }}
                   style={{ padding: "12px 15px", borderRadius: 8, textAlign: "left", border: "1px solid", borderColor: isSelected ? "#00bfa5" : "#cbd5e0", backgroundColor: isSelected ? "#00bfa5" : "#fff", color: isSelected ? "#fff" : "#4a5568", cursor: "pointer", fontSize: "0.95rem", fontWeight: "bold" }}
                 >
                   {button.label}
@@ -720,8 +729,7 @@ export default function Home() {
                         const url = typeof file === "string" ? file : (file.file_url || file.url);
                         const name = typeof file === "string" ? `ファイル ${i + 1}` : (file.file_name || file.name);
                         return (
-                          /* 🟢 aタグ本来の挙動（target="_blank"）にし、JS側で確実に別窓を開く形に安全化しました */
-                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...styles.attachmentLink, margin: 0 }} onClick={(e) => handleDownloadFile(e, url)}>
+                          <a key={i} href="#" style={{ ...styles.attachmentLink, margin: 0 }} onClick={(e) => handleDownloadFile(e, url)}>
                              {name}
                           </a>
                         );

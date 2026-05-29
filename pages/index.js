@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
 // 1ページあたりの表示件数
@@ -156,6 +155,7 @@ const styles = {
   attachmentSection: { marginTop: 15, paddingTop: 12, borderTop: "1px dashed #e2e8f0" },
   attachmentLink: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.85rem", color: "#3182ce", textDecoration: "none", marginRight: 12, marginBottom: 4, fontWeight: "500" }
 };
+
 // メインコンポーネント
 export default function Home() {
   const [projects, setProjects] = useState([]);
@@ -177,46 +177,66 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
 
+  // 🕒 【追加箇所1】検索履歴用のStateと保存関数
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [history, setHistory] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("searchHistory") || "[]");
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const handleSearchSubmit = (keyword) => {
+    if (!keyword || !keyword.trim()) return;
+    const trimmed = keyword.trim();
+    setHistory((prev) => {
+      const next = [trimmed, ...prev.filter((k) => k !== trimmed)].slice(0, 5);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("searchHistory", JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
   // supabaseから添付ファイル情報を取得して、 機械語（バイナリデータ）をファイルに復元してダウンロードする
- const handleDownloadFile = async (event, fileUrl, fileName) => {
-  event.preventDefault();
-  event.stopPropagation();
+  const handleDownloadFile = async (event, fileUrl, fileName) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-  if (!fileUrl) {
-    alert("ファイルURLが存在しません。");
-    return;
-  }
-
-  try {
-    // 1. URLを一旦デコードして「生の文字列」に戻す（二重エンコード防止）
-    // 2. その上で、encodeURI を使ってURL全体を「Web標準の形式」に変換する
-    //    これでスペースが %20 に正しく変換されます。
-    const safeUrl = encodeURI(decodeURI(fileUrl));
-
-    const response = await fetch(safeUrl);
-    if (!response.ok) {
-      throw new Error(`ファイルの取得に失敗しました (Status: ${response.status})`);
+    if (!fileUrl) {
+      alert("ファイルURLが存在しません。");
+      return;
     }
 
-    const blob = await response.blob();
-    const tempUrl = window.URL.createObjectURL(blob);
+    try {
+      const safeUrl = encodeURI(decodeURI(fileUrl));
+      const response = await fetch(safeUrl);
+      if (!response.ok) {
+        throw new Error(`ファイルの取得に失敗しました (Status: ${response.status})`);
+      }
 
-    const link = document.createElement("a");
-    link.href = tempUrl;
-    link.download = fileName || "download_file";
-    document.body.appendChild(link);
-    link.click();
+      const blob = await response.blob();
+      const tempUrl = window.URL.createObjectURL(blob);
 
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(tempUrl);
-  } catch (error) {
-    console.error("ダウンロードエラー:", error);
-    // 最終手段としてブラウザで直接開く
-    window.open(encodeURI(decodeURI(fileUrl)), '_blank');
-  }
-};
+      const link = document.createElement("a");
+      link.href = tempUrl;
+      link.download = fileName || "download_file";
+      document.body.appendChild(link);
+      link.click();
 
- // APIから全データをループで取得
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(tempUrl);
+    } catch (error) {
+      console.error("ダウンロードエラー:", error);
+      window.open(encodeURI(decodeURI(fileUrl)), '_blank');
+    }
+  };
+
+  // APIから全データをループで取得
   const fetchData = useCallback(async () => {
     setLoading(true);
     let allProjects = [];
@@ -236,10 +256,10 @@ export default function Home() {
         }
       }
       const favorites = storage.get("favorites");
-      const history = storage.get("history");
+      const historyData = storage.get("history");
       const read = storage.get("readProjects");
       const applied = storage.get("appliedIds");
-      setHistoryIds(history);
+      setHistoryIds(historyData);
       setReadIds(read);
       setAppliedIds(applied);
       setProjects(
@@ -301,14 +321,14 @@ export default function Home() {
       const searchableText = `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
       const projectLocation = (project.location || "").trim();
       const projectPrefNormalized = normalize(projectLocation);
-      // 地域フィルターの判定 (前方一致)
+      
       if (viewMode === "all" && selectedRegion !== "すべて") {
         const matchesRegion = allowedPrefsNormalized.some((pref) => {
           return projectPrefNormalized.startsWith(pref);
         });
         if (!matchesRegion) return false;
       }
-      // 都道府県詳細フィルターの判定 (前方一致)
+      
       if (selectedPrefs.length) {
         const matchesPref = selectedPrefs.some((pref) => {
           return projectPrefNormalized.startsWith(normalize(pref));
@@ -373,9 +393,9 @@ export default function Home() {
 
   const openProject = (project) => {
     setSelectedProject(project);
-    const history = storage.get("history");
-    if (!history.includes(project.id)) {
-      const updated = [project.id, ...history].slice(0, 50);
+    const historyData = storage.get("history");
+    if (!historyData.includes(project.id)) {
+      const updated = [project.id, ...historyData].slice(0, 50);
       storage.set("history", updated);
       setHistoryIds(updated);
     }
@@ -395,7 +415,6 @@ export default function Home() {
     window.location.href = ccEmail ? `mailto:${targetEmail}?cc=${encodeURIComponent(ccEmail)}` : `mailto:${targetEmail}`;
   };
 
-  // 削除機能の実行関数（エンドポイントを修正済み）
   const handleExecuteDelete = async () => {
     if (!deleteTargetId) return;
     try {
@@ -413,7 +432,6 @@ export default function Home() {
     }
   };
 
-  // 表示対象となる都道府県リストの取得
   const filterablePrefectures = useMemo(() => {
     if (selectedRegion === "すべて") {
       return regionalPrefectures.flatMap((r) => r.prefs);
@@ -424,7 +442,6 @@ export default function Home() {
   const ProjectCard = ({ project }) => {
     const isRead = readIds.includes(project.id);
     const isApplied = appliedIds.includes(project.id);
-    // 添付ファイルの配列を安全に取得（文字列で来ている場合はパース、無ければ空配列）
     const attachments = useMemo(() => {
       if (!project.attachments) return [];
       if (Array.isArray(project.attachments)) return project.attachments;
@@ -466,14 +483,11 @@ export default function Home() {
             </div>
           ))}
 
-          {/* カード側の添付ファイル一覧表示（有無の明記のみに変更）▼ */}
           {attachments.length > 0 && (
             <div style={{ marginTop: 12, fontSize: "0.8rem", color: "#4a5568", fontWeight: "bold", backgroundColor: "#edf2f7", padding: "4px 8px", borderRadius: 4, display: "inline-block" }}>
               📎 添付ファイルあり ({attachments.length})
             </div>
           )}
-          
-
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 20, flexWrap: "wrap" }}>
           <button onClick={() => openProject(project)} style={{ ...styles.primaryButton, flex: "1 1 calc(50% - 4px)" }}>詳細</button>
@@ -559,22 +573,48 @@ export default function Home() {
           {viewMode === "all" && (
             <div style={{ backgroundColor: "#fff", padding: 25, borderRadius: 10, border: "1px solid #e2e8f0", marginBottom: 30 }}>
               <div style={{ position: "relative", marginBottom: 15 }}>
+                
+                {/* 🕒 【追加箇所2】検索履歴サジェスト付きの検索窓 */}
                 <input
                   type="text"
-                  placeholder="キーワード・駅名で検索"
+                  placeholder="キーワード・駅名で検索 (Enterで履歴保存)"
                   value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); fetchStations(e.target.value); }}
+                  onChange={(e) => { 
+                    setSearchQuery(e.target.value); 
+                    setCurrentPage(1); 
+                    fetchStations(e.target.value); 
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearchSubmit(searchQuery);
+                    }
+                  }}
                   style={{ width: "100%", padding: 14, border: "2px solid #cbd5e0", borderRadius: 8, fontSize: "1rem", boxSizing: "border-box" }}
                 />
-                {!!stationSuggestions.length && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e0", zIndex: 100, borderRadius: 8, boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
-                    {stationSuggestions.map((name) => (
-                      <div key={name} onClick={() => { setSearchQuery(name); setStationSuggestions([]); setCurrentPage(1); }} style={{ padding: 12, cursor: "pointer", borderBottom: "1px solid #f7fafc" }}>
-                        {name}駅
+
+                {showSuggestions && history.length > 0 && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e0", zIndex: 110, borderRadius: 8, boxShadow: "0 4px 6px rgba(0,0,0,0.1)", marginTop: 4 }}>
+                    <div style={{ padding: "8px 12px", fontSize: "0.75rem", fontWeight: "bold", color: "#a0aec0", borderBottom: "1px solid #edf2f7" }}>
+                      過去の検索履歴
+                    </div>
+                    {history.map((name) => (
+                      <div 
+                        key={name} 
+                        onMouseDown={() => { 
+                          setSearchQuery(name); 
+                          handleSearchSubmit(name); 
+                          setCurrentPage(1); 
+                        }} 
+                        style={{ padding: 12, cursor: "pointer", borderBottom: "1px solid #f7fafc", fontSize: "0.9rem", color: "#4a5568", display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        🕒 {name}
                       </div>
                     ))}
                   </div>
                 )}
+
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <button onClick={() => setShowFilters((v) => !v)} style={{ background: "#f8fafc", border: "1px solid #cbd5e0", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: "0.85rem", fontWeight: "bold" }}>
@@ -683,7 +723,6 @@ export default function Home() {
               <div><strong>【募集期間】</strong> {selectedProject.end_date || "記載なし"}</div>
               <div><strong>【スキル】</strong> {selectedProject.skills || "記載なし"}</div>
               
-              {/* ▼修正箇所2：モーダル側の添付ファイル一覧表示（DL関数発火）▼ */}
               {(() => {
                 const pAttachments = !selectedProject.attachments ? [] : 
                                      Array.isArray(selectedProject.attachments) ? selectedProject.attachments : 
@@ -706,7 +745,6 @@ export default function Home() {
                   </div>
                 );
               })()}
-              {/* ▲修正箇所2ここまで▲ */}
               
             </div>
             <hr style={{ border: "none", borderTop: "1px solid #edf2f7", margin: "20px 0" }} />
@@ -734,5 +772,4 @@ export default function Home() {
       )}
     </div>
   );
-
 }

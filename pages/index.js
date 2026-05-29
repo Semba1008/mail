@@ -177,7 +177,7 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
 
-  // 🕒 検索履歴用のStateと保存関数（内部的な保存枠は余裕を持って20件に広げています）
+  // 🕒 検索履歴用のStateと保存関数
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [history, setHistory] = useState(() => {
     if (typeof window !== "undefined") {
@@ -194,7 +194,6 @@ export default function Home() {
     if (!keyword || !keyword.trim()) return;
     const trimmed = keyword.trim();
     setHistory((prev) => {
-      // 🟢 履歴データ自体は20件まで保持し、表示側で高さを制限してスクロールさせます
       const next = [trimmed, ...prev.filter((k) => k !== trimmed)].slice(0, 20);
       if (typeof window !== "undefined") {
         localStorage.setItem("searchHistory", JSON.stringify(next));
@@ -203,10 +202,9 @@ export default function Home() {
     });
   };
 
-  // supabaseから添付ファイル情報を取得して、 機械語（バイナリデータ）をファイルに復元してダウンロードする
-  const handleDownloadFile = async (event, fileUrl, fileName) => {
-    event.preventDefault();
-    event.stopPropagation();
+  // 🟢 確実に開けるよう、直接ブラウザの別タブで開く安全な処理に変更しました
+  const handleDownloadFile = (event, fileUrl) => {
+    event.stopPropagation(); // モーダルが閉じるのを防ぐ
 
     if (!fileUrl) {
       alert("ファイルURLが存在しません。");
@@ -214,26 +212,12 @@ export default function Home() {
     }
 
     try {
+      // 念のためURLのデコード・エンコード処理を入れてブラウザが認識しやすくする
       const safeUrl = encodeURI(decodeURI(fileUrl));
-      const response = await fetch(safeUrl);
-      if (!response.ok) {
-        throw new Error(`ファイルの取得に失敗しました (Status: ${response.status})`);
-      }
-
-      const blob = await response.blob();
-      const tempUrl = window.URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = tempUrl;
-      link.download = fileName || "download_file";
-      document.body.appendChild(link);
-      link.click();
-
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(tempUrl);
+      window.open(safeUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      console.error("ダウンロードエラー:", error);
-      window.open(encodeURI(decodeURI(fileUrl)), '_blank');
+      console.error("ファイル展開エラー:", error);
+      window.open(fileUrl, '_blank');
     }
   };
 
@@ -577,7 +561,7 @@ export default function Home() {
                 
                 <input
                   type="text"
-                  placeholder="キーワード・駅名で検索"
+                  placeholder="キーワード・駅名で検索 (Enterで履歴保存)"
                   value={searchQuery}
                   onChange={(e) => { 
                     setSearchQuery(e.target.value); 
@@ -595,7 +579,6 @@ export default function Home() {
                 />
 
                 {showSuggestions && history.length > 0 && (
-                  /* 🟢 max-heightを履歴5件分相当の「220px」に固定し、あふれたらスクロール（overflowY: "auto"）にしました */
                   <div style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e0", zIndex: 110, borderRadius: 8, boxShadow: "0 4px 6px rgba(0,0,0,0.1)", marginTop: 4, maxHeight: "220px", overflowY: "auto" }}>
                     <div style={{ padding: "8px 12px", fontSize: "0.75rem", fontWeight: "bold", color: "#a0aec0", borderBottom: "1px solid #edf2f7", position: "sticky", top: 0, backgroundColor: "#fff", zIndex: 1 }}>
                       過去の検索履歴
@@ -737,7 +720,8 @@ export default function Home() {
                         const url = typeof file === "string" ? file : (file.file_url || file.url);
                         const name = typeof file === "string" ? `ファイル ${i + 1}` : (file.file_name || file.name);
                         return (
-                          <a key={i} href={url} style={{ ...styles.attachmentLink, margin: 0 }} onClick={(e) => handleDownloadFile(e, url, name)}>
+                          /* 🟢 aタグ本来の挙動（target="_blank"）にし、JS側で確実に別窓を開く形に安全化しました */
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...styles.attachmentLink, margin: 0 }} onClick={(e) => handleDownloadFile(e, url)}>
                              {name}
                           </a>
                         );

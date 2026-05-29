@@ -202,32 +202,17 @@ export default function Home() {
     });
   };
 
-  // 🟢 日本語や「★」「()」などの記号をサーバーが正しく認識できるURLに安全変換して別タブで開く処理
+  // 🟢 確実に開くために、データベースから来たままのURLをそのまま別窓で開く形式に変更
   const handleDownloadFile = (event, fileUrl) => {
-    event.stopPropagation();
+    event.stopPropagation(); // モーダルが閉じるのを防ぐ
 
     if (!fileUrl) {
       alert("ファイルURLが存在しません。");
       return;
     }
 
-    try {
-      // 一度完全にデコードして生の文字列に戻す
-      const decodedUrl = decodeURIComponent(decodeURI(fileUrl));
-      
-      // URLをベース部分とファイル名部分（末尾）に分解して、ファイル名部分だけを「超安全」に再エンコードする
-      // これにより、全角記号や日本語が含まれていてもサーバーが正しくファイルを特定できるようになります
-      const urlParts = decodedUrl.split("/");
-      const fileName = urlParts.pop();
-      const baseUrl = urlParts.join("/");
-      
-      const safeUrl = `${baseUrl}/${encodeURIComponent(fileName)}`;
-      window.open(safeUrl, '_blank', 'noopener,noreferrer');
-    } catch (error) {
-      console.error("URLエンコードエラー:", error);
-      // 万が一のフォールバック
-      window.open(fileUrl, '_blank');
-    }
+    // 渡ってきたURLをそのままブラウザの別タブに流し込みます
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
   // APIから全データをループで取得
@@ -554,7 +539,7 @@ export default function Home() {
               return (
                 <button
                   key={button.id}
-                  onClick={() => { setFavFilters(button.id === "all" ? [] : favFilters.includes(button.id) ? favFilters.filter((id) => id !== button.id) : [...favFilters, bundle.id]); setCurrentPage(1); }}
+                  onClick={() => { setFavFilters(button.id === "all" ? [] : favFilters.includes(button.id) ? favFilters.filter((id) => id !== button.id) : [...favFilters, button.id]); setCurrentPage(1); }}
                   style={{ padding: "12px 15px", borderRadius: 8, textAlign: "left", border: "1px solid", borderColor: isSelected ? "#00bfa5" : "#cbd5e0", backgroundColor: isSelected ? "#00bfa5" : "#fff", color: isSelected ? "#fff" : "#4a5568", cursor: "pointer", fontSize: "0.95rem", fontWeight: "bold" }}
                 >
                   {button.label}
@@ -677,7 +662,7 @@ export default function Home() {
           {loading ? (
             <div style={styles.spinner} />
           ) : currentItems.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#718096", backgroundColor: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+            <div style={{ text-align: "center", padding: "40px", color: "#718096", backgroundColor: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" }}>
               該当する案件が見つかりませんでした。
             </div>
           ) : (
@@ -729,7 +714,8 @@ export default function Home() {
                         const url = typeof file === "string" ? file : (file.file_url || file.url);
                         const name = typeof file === "string" ? `ファイル ${i + 1}` : (file.file_name || file.name);
                         return (
-                          <a key={i} href="#" style={{ ...styles.attachmentLink, margin: 0 }} onClick={(e) => handleDownloadFile(e, url)}>
+                          /* 🟢 aタグの通常ジャンプ形式にしてURLをそのままブラウザに預ける最も確実な方式に変更 */
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={styles.attachmentLink} onClick={(e) => e.stopPropagation()}>
                              {name}
                           </a>
                         );

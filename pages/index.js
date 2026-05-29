@@ -177,7 +177,7 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
 
-  // 🕒 【追加箇所1】検索履歴用のStateと保存関数
+  // 🕒 検索履歴用のStateと保存関数（内部的な保存枠は余裕を持って20件に広げています）
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [history, setHistory] = useState(() => {
     if (typeof window !== "undefined") {
@@ -194,7 +194,8 @@ export default function Home() {
     if (!keyword || !keyword.trim()) return;
     const trimmed = keyword.trim();
     setHistory((prev) => {
-      const next = [trimmed, ...prev.filter((k) => k !== trimmed)].slice(0, 5);
+      // 🟢 履歴データ自体は20件まで保持し、表示側で高さを制限してスクロールさせます
+      const next = [trimmed, ...prev.filter((k) => k !== trimmed)].slice(0, 20);
       if (typeof window !== "undefined") {
         localStorage.setItem("searchHistory", JSON.stringify(next));
       }
@@ -574,10 +575,9 @@ export default function Home() {
             <div style={{ backgroundColor: "#fff", padding: 25, borderRadius: 10, border: "1px solid #e2e8f0", marginBottom: 30 }}>
               <div style={{ position: "relative", marginBottom: 15 }}>
                 
-                {/* 🕒 【追加箇所2】検索履歴サジェスト付きの検索窓 */}
                 <input
                   type="text"
-                  placeholder="キーワード・駅名で検索"
+                  placeholder="キーワード・駅名で検索 (Enterで履歴保存)"
                   value={searchQuery}
                   onChange={(e) => { 
                     setSearchQuery(e.target.value); 
@@ -595,8 +595,9 @@ export default function Home() {
                 />
 
                 {showSuggestions && history.length > 0 && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e0", zIndex: 110, borderRadius: 8, boxShadow: "0 4px 6px rgba(0,0,0,0.1)", marginTop: 4 }}>
-                    <div style={{ padding: "8px 12px", fontSize: "0.75rem", fontWeight: "bold", color: "#a0aec0", borderBottom: "1px solid #edf2f7" }}>
+                  /* 🟢 max-heightを履歴5件分相当の「220px」に固定し、あふれたらスクロール（overflowY: "auto"）にしました */
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #cbd5e0", zIndex: 110, borderRadius: 8, boxShadow: "0 4px 6px rgba(0,0,0,0.1)", marginTop: 4, maxHeight: "220px", overflowY: "auto" }}>
+                    <div style={{ padding: "8px 12px", fontSize: "0.75rem", fontWeight: "bold", color: "#a0aec0", borderBottom: "1px solid #edf2f7", position: "sticky", top: 0, backgroundColor: "#fff", zIndex: 1 }}>
                       過去の検索履歴
                     </div>
                     {history.map((name) => (

@@ -419,8 +419,8 @@ export default function Home() {
   }, [selectedRegion]);
 
   const ProjectCard = ({ project }) => {
-    const isRead = readIds.includes(project.id);
-    const isApplied = appliedIds.includes(project.id);
+    const isRead = readIds.includes(project.projects_id);
+    const isApplied = appliedIds.includes(project.projects_id);
     // 添付ファイルの配列を安全に取得（文字列で来ている場合はパース、無ければ空配列）
     const attachments = useMemo(() => {
       if (!project.attachments) return [];

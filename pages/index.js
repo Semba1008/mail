@@ -25,6 +25,7 @@ const regionalPrefectures = [
       "千葉県",
       "東京都",
       "神奈川県",
+      "関東"
     ],
   },
   {
@@ -40,6 +41,9 @@ const regionalPrefectures = [
       "静岡県",
       "愛知県",
       "三重県",
+      "中部",
+      "北陸",
+
     ],
   },
   {
@@ -68,6 +72,10 @@ const regionalPrefectures = [
       "宮崎県",
       "鹿児島県",
       "沖縄県",
+      "関西",
+      "九州",
+      "中国",
+      "四国",
     ],
   },
 ];

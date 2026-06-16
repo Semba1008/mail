@@ -11,12 +11,7 @@ export default async function handler(req, res) {
 
   const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({
-      status: "error",
-      error: "メールアドレスとパスワードを入力してください",
-    });
-  }
+  
 
   try {
     // ユーザー取得
@@ -115,4 +110,6 @@ export default async function handler(req, res) {
       error: "サーバーエラー",
     });
   }
+
+  
 }

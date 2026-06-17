@@ -25,7 +25,7 @@ const regionalPrefectures = [
       "千葉県",
       "東京都",
       "神奈川県",
-      "関東"
+      "関東",
     ],
   },
   {
@@ -43,7 +43,6 @@ const regionalPrefectures = [
       "三重県",
       "中部",
       "北陸",
-
     ],
   },
   {
@@ -228,19 +227,11 @@ const extractRecruitment = (content = "") => {
 };
 // 案件のカテゴリ判定
 const getProjectCategories = (project) => {
-  const text =
-    `${project.category}`.toLowerCase();
+  const text = `${project.category}`.toLowerCase();
   const categories = [];
-  if (
-    /開発/i.test(
-      text,
-    )
-  )
-    categories.push("dev");
-  if (/インフラ/i.test(text))
-    categories.push("infra");
-  if (/組み込み/i.test(text))
-    categories.push("embedded");
+  if (/開発/i.test(text)) categories.push("dev");
+  if (/インフラ/i.test(text)) categories.push("infra");
+  if (/組み込み/i.test(text)) categories.push("embedded");
   return categories.length ? categories : ["dev"];
 };
 // スタイル定義
@@ -842,8 +833,6 @@ export default function Home() {
         return [];
       }
     }, [project.attachments]);
-
-
 
     return (
       <div style={{ ...styles.card, opacity: project.isClosed ? 0.7 : 1 }}>
@@ -1643,6 +1632,23 @@ export default function Home() {
               <div>
                 <strong>【スキル】</strong>{" "}
                 {selectedProject.skills || "記載なし"}
+              </div>
+              <div>
+                <strong>【カテゴリ】</strong>{" "}
+                {getProjectCategories(selectedProject)
+                  .map((category) => {
+                    switch (category) {
+                      case "dev":
+                        return "開発";
+                      case "infra":
+                        return "インフラ";
+                      case "embedded":
+                        return "組み込み";
+                      default:
+                        return category;
+                    }
+                  })
+                  .join(" / ")}
               </div>
               {(() => {
                 const pAttachments = !selectedProject.attachments

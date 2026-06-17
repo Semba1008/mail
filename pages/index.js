@@ -229,17 +229,17 @@ const extractRecruitment = (content = "") => {
 // 案件のカテゴリ判定
 const getProjectCategories = (project) => {
   const text =
-    `${project.title || ""}${project.content || ""}${project.skills || ""}`.toLowerCase();
+    `${project.category}`.toLowerCase();
   const categories = [];
   if (
-    /java|php|python|ruby|go|c#|react|next\.js|vue\.js|typescript|javascript|フロントエンド|バックエンド|アプリ|開発/i.test(
+    /開発/i.test(
       text,
     )
   )
     categories.push("dev");
-  if (/インフラ|サーバ|ネットワーク|aws|azure|gcp|cloud|監視|構築/i.test(text))
+  if (/インフラ/i.test(text))
     categories.push("infra");
-  if (/組み込み|組込|マイコン|制御|c言語|c\+\+|embedded/i.test(text))
+  if (/組み込み/i.test(text))
     categories.push("embedded");
   return categories.length ? categories : ["dev"];
 };
@@ -832,6 +832,7 @@ export default function Home() {
   const ProjectCard = ({ project }) => {
     const isRead = readIds.includes(project.id);
     const isApplied = appliedIds.includes(project.id);
+    const projectCategories = getProjectCategories(project);
     const attachments = useMemo(() => {
       if (!project.attachments) return [];
       if (Array.isArray(project.attachments)) return project.attachments;
@@ -841,6 +842,8 @@ export default function Home() {
         return [];
       }
     }, [project.attachments]);
+
+
 
     return (
       <div style={{ ...styles.card, opacity: project.isClosed ? 0.7 : 1 }}>

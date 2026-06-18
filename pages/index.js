@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { supabaseAdmin } from "../lib/supabaseAdmin";
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
 // 1ページあたりの表示件数
@@ -513,9 +514,6 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   // 駅名サジェスト取得
   const fetchStations = useCallback(
@@ -564,43 +562,39 @@ export default function Home() {
       ? currentRegionData.prefs.map(normalize)
       : [];
 
-    // 1年前の日付を計算
-    const oneYearAgo = new Date();
-
-    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+      
 
     // 案件ごとに、募集終了が近いかどうかを判定してフラグを付与
-    return projects
-      .map((project) => {
-        let isExpiringSoon = false;
+   return projects
+  .map((project) => {
+    if (!project.created_at) return { ...project, isExpiringSoon: false };
 
-        if (project.created_at) {
-          const projectDate = new Date(project.created_at);
+    const projectDate = new Date(project.created_at);
+    const expireDate = new Date(projectDate);
+    expireDate.setDate(expireDate.getDate() + 365);
 
-          if (projectDate >= oneYearAgo) {
-            const warningDate = new Date(projectDate);
+    // 警告日（期限の30日前）
+    const warningDate = new Date(expireDate);
+    warningDate.setDate(warningDate.getDate() - 30);
 
-            // 20日経過で警告
-            warningDate.setDate(warningDate.getDate() + 20);
+    const now = new Date();
+    return {
+      ...project,
+      isExpiringSoon: now >= warningDate && now <= expireDate,
+    };
+  })
+  .filter((project) => {
+    if (!project.created_at) return true;
+    
+    const expireDate = new Date(project.created_at);
+    expireDate.setDate(expireDate.getDate() + 365);
+    
+    // 期限内（現在時刻 <= 期限）のものだけを残す
+    return new Date() <= expireDate;
+  });
 
-            isExpiringSoon = new Date() >= warningDate;
-          }
-        }
-
-        return {
-          ...project,
-          isExpiringSoon,
-        };
-      })
-      .filter((project) => {
-        // 1年以上前は非表示
-        if (project.created_at) {
-          const projectDate = new Date(project.created_at);
-
-          if (projectDate < oneYearAgo) {
-            return false;
-          }
-        }
+          
+        
 
         if (hideClosed && project.isClosed) return false;
 

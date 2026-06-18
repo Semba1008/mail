@@ -83,26 +83,25 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ message: "削除成功" });
     }
-
     // =========================
     // GET
     // =========================
     if (req.method === "GET") {
+      
+      // ④ データ取得
       const page = Number(req.query?.page || 0);
       const pageSize = 1000;
 
       const { data, error } = await supabaseAdmin
         .from("projects")
-        .select(
-          `
+        .select(`
           *,
           attachments (
             id,
             file_name,
             file_url
           )
-        `
-        )
+        `)
         .order("created_at", { ascending: false })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
@@ -114,6 +113,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(405).json({ error: "Method Not Allowed" });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "SERVER_ERROR" });

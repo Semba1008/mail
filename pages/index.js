@@ -551,6 +551,7 @@ export default function Home() {
   );
 
   // フィルタリング処理
+// フィルタリング処理
   const filteredProjects = useMemo(() => {
     const query = searchQuery.toLowerCase();
 
@@ -562,104 +563,67 @@ export default function Home() {
       ? currentRegionData.prefs.map(normalize)
       : [];
 
-      
+    return projects
+      .map((project) => {
+        // --- 期限フラグの付与 ---
+        if (!project.created_at) return { ...project, isExpiringSoon: false };
+        const projectDate = new Date(project.created_at);
+        const expireDate = new Date(projectDate);
+        expireDate.setDate(expireDate.getDate() + 365);
+        const warningDate = new Date(expireDate);
+        warningDate.setDate(warningDate.getDate() - 30);
+        const now = new Date();
+        return {
+          ...project,
+          isExpiringSoon: now >= warningDate && now <= expireDate,
+        };
+      })
+      .filter((project) => {
+        // --- ここからがフィルタリングの全条件 ---
 
-    // 案件ごとに、募集終了が近いかどうかを判定してフラグを付与
-   return projects
-  .map((project) => {
-    if (!project.created_at) return { ...project, isExpiringSoon: false };
+        // 1. 1年以上経過したものを非表示
+        if (project.created_at) {
+          const expireDate = new Date(project.created_at);
+          expireDate.setDate(expireDate.getDate() + 365);
+          if (new Date() > expireDate) return false;
+        }
 
-    const projectDate = new Date(project.created_at);
-    const expireDate = new Date(projectDate);
-    expireDate.setDate(expireDate.getDate() + 365);
-
-    // 警告日（期限の30日前）
-    const warningDate = new Date(expireDate);
-    warningDate.setDate(warningDate.getDate() - 30);
-
-    const now = new Date();
-    return {
-      ...project,
-      isExpiringSoon: now >= warningDate && now <= expireDate,
-    };
-  })
-  .filter((project) => {
-    if (!project.created_at) return true;
-    
-    const expireDate = new Date(project.created_at);
-    expireDate.setDate(expireDate.getDate() + 365);
-    
-    // 期限内（現在時刻 <= 期限）のものだけを残す
-    return new Date() <= expireDate;
-  });
-
-          
-        
-
+        // 2. クローズ案件の除外
         if (hideClosed && project.isClosed) return false;
 
+        // 3. モード別のフィルタリング
         const isApplied = appliedIds.includes(project.id);
-
         if (viewMode === "applied") return isApplied;
-
         if (isApplied) return false;
-
         if (viewMode === "favorites") return project.favorite;
+        if (viewMode === "history") return historyIds.includes(project.id);
 
-        if (viewMode === "history") {
-          return historyIds.includes(project.id);
-        }
-
+        // 4. カテゴリフィルタ
         if (favFilters.length) {
           const categories = getProjectCategories(project);
-
-          if (!favFilters.every((filter) => categories.includes(filter))) {
-            return false;
-          }
+          if (!favFilters.every((filter) => categories.includes(filter))) return false;
         }
 
+        // 5. 検索・場所・スキル・リモート条件
         const pureContent = removeSignature(project.content || "");
-
-        const searchableText = `${project.title || ""}${
-          project.skills || ""
-        }${pureContent}${project.location || ""}`.toLowerCase();
-
+        const searchableText = `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
         const projectLocation = (project.location || "").trim();
-
         const projectPrefNormalized = normalize(projectLocation);
 
-        // 地域フィルタ
         if (viewMode === "all" && selectedRegion !== "すべて") {
-          const matchesRegion = allowedPrefsNormalized.some((pref) =>
-            projectPrefNormalized.startsWith(pref),
-          );
-
+          const matchesRegion = allowedPrefsNormalized.some((pref) => projectPrefNormalized.startsWith(pref));
           if (!matchesRegion) return false;
         }
 
-        // 都道府県フィルタ
         if (selectedPrefs.length) {
-          const matchesPref = selectedPrefs.some((pref) =>
-            projectPrefNormalized.startsWith(normalize(pref)),
-          );
-
+          const matchesPref = selectedPrefs.some((pref) => projectPrefNormalized.startsWith(normalize(pref)));
           if (!matchesPref) return false;
         }
 
-        // スキル一致
-        const matchesSkill =
-          !selectedSkills.length ||
-          selectedSkills.every((skill) =>
-            searchableText.includes(skill.toLowerCase()),
-          );
+        const matchesSkill = !selectedSkills.length || selectedSkills.every((skill) => searchableText.includes(skill.toLowerCase()));
+        const matchesRemote = !isRemoteOnly || [project.location, project.title, pureContent].some((text) => text?.includes("リモート"));
 
-        // リモート案件
-        const matchesRemote =
-          !isRemoteOnly ||
-          [project.location, project.title, pureContent].some((text) =>
-            text?.includes("リモート"),
-          );
-
+        // 最後の条件を返す
         return searchableText.includes(query) && matchesSkill && matchesRemote;
       });
   }, [

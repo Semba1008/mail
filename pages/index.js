@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { supabaseAdmin } from "../lib/supabaseAdmin";
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
 // 1ページあたりの表示件数

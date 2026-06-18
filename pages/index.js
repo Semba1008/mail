@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
-
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
 // 1ページあたりの表示件数
 const PAGE_SIZE = 24;
@@ -397,6 +396,11 @@ export default function Home() {
     checkLogin();
   }, []);
 
+  useEffect(() => {
+    if (!authChecked || !user) return;
+    fetchData();
+  }, [authChecked, user]);
+
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -478,29 +482,36 @@ export default function Home() {
   // APIから全データをループで取得
   const fetchData = useCallback(async () => {
     setLoading(true);
-    let allProjects = [];
-    let page = 0;
-    let isFetching = true;
 
     try {
+      let allProjects = [];
+      let page = 0;
+      let isFetching = true;
+
       while (isFetching) {
         const res = await fetch(`/api/mails?page=${page}`);
         const payload = await res.json();
+
         if (payload.error || !payload.data) break;
+
         allProjects = [...allProjects, ...payload.data];
+
         if (payload.data.length < 1000) {
           isFetching = false;
         } else {
           page = page + 1;
         }
       }
+
       const favorites = storage.get("favorites");
       const historyData = storage.get("history");
       const read = storage.get("readProjects");
       const applied = storage.get("appliedIds");
+
       setHistoryIds(historyData);
       setReadIds(read);
       setAppliedIds(applied);
+
       setProjects(
         allProjects.map((item) => ({
           ...item,
@@ -513,7 +524,6 @@ export default function Home() {
       setLoading(false);
     }
   }, []);
-
 
   // 駅名サジェスト取得
   const fetchStations = useCallback(
@@ -551,7 +561,7 @@ export default function Home() {
   );
 
   // フィルタリング処理
-// フィルタリング処理
+  // フィルタリング処理
   const filteredProjects = useMemo(() => {
     const query = searchQuery.toLowerCase();
 
@@ -601,27 +611,41 @@ export default function Home() {
         // 4. カテゴリフィルタ
         if (favFilters.length) {
           const categories = getProjectCategories(project);
-          if (!favFilters.every((filter) => categories.includes(filter))) return false;
+          if (!favFilters.every((filter) => categories.includes(filter)))
+            return false;
         }
 
         // 5. 検索・場所・スキル・リモート条件
         const pureContent = removeSignature(project.content || "");
-        const searchableText = `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
+        const searchableText =
+          `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
         const projectLocation = (project.location || "").trim();
         const projectPrefNormalized = normalize(projectLocation);
 
         if (viewMode === "all" && selectedRegion !== "すべて") {
-          const matchesRegion = allowedPrefsNormalized.some((pref) => projectPrefNormalized.startsWith(pref));
+          const matchesRegion = allowedPrefsNormalized.some((pref) =>
+            projectPrefNormalized.startsWith(pref),
+          );
           if (!matchesRegion) return false;
         }
 
         if (selectedPrefs.length) {
-          const matchesPref = selectedPrefs.some((pref) => projectPrefNormalized.startsWith(normalize(pref)));
+          const matchesPref = selectedPrefs.some((pref) =>
+            projectPrefNormalized.startsWith(normalize(pref)),
+          );
           if (!matchesPref) return false;
         }
 
-        const matchesSkill = !selectedSkills.length || selectedSkills.every((skill) => searchableText.includes(skill.toLowerCase()));
-        const matchesRemote = !isRemoteOnly || [project.location, project.title, pureContent].some((text) => text?.includes("リモート"));
+        const matchesSkill =
+          !selectedSkills.length ||
+          selectedSkills.every((skill) =>
+            searchableText.includes(skill.toLowerCase()),
+          );
+        const matchesRemote =
+          !isRemoteOnly ||
+          [project.location, project.title, pureContent].some((text) =>
+            text?.includes("リモート"),
+          );
 
         // 最後の条件を返す
         return searchableText.includes(query) && matchesSkill && matchesRemote;
@@ -778,13 +802,26 @@ export default function Home() {
     );
   }, [selectedRegion]);
 
-  const ProjectCard = ({ project }) => {
+  const ProjectCard = ({
+    project,
+    readIds,
+    appliedIds,
+    viewMode,
+    toggleFavorite,
+    toggleApplied,
+    openProject,
+    handleSendEmail,
+    setDeleteTargetId,
+  }) => {
     const isRead = readIds.includes(project.id);
     const isApplied = appliedIds.includes(project.id);
     const projectCategories = getProjectCategories(project);
+
+    // useMemoはここでOK（コンポーネントが安定した後）
     const attachments = useMemo(() => {
       if (!project.attachments) return [];
       if (Array.isArray(project.attachments)) return project.attachments;
+
       try {
         return JSON.parse(project.attachments);
       } catch {
@@ -1423,7 +1460,18 @@ export default function Home() {
                 }}
               >
                 {currentItems.map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    readIds={readIds}
+                    appliedIds={appliedIds}
+                    viewMode={viewMode}
+                    toggleFavorite={toggleFavorite}
+                    toggleApplied={toggleApplied}
+                    openProject={openProject}
+                    handleSendEmail={handleSendEmail}
+                    setDeleteTargetId={setDeleteTargetId}
+                  />
                 ))}
               </div>
               {/*一気に飛べるボタンを追加 */}

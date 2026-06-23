@@ -171,43 +171,26 @@ const decodeHtml = (html) => {
   return textarea.value;
 };
 // テキスト内のURLやメールアドレスをリンクに変換する関数
-const formatContent = (html) => {
+// 改善案：Base64/HTMLデコードをスキップし、純粋なリンク化のみを行う
+const formatContent = (text) => {
   try {
-    const decoded = decodeHtml(html || "");
     const linkRegex = /(https?:\/\/[^\s<>"']+|[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,})/g;
-    return decoded.split(linkRegex).map((part, index) => {
+    return text.split(linkRegex).map((part, index) => {
+      // リンク化の処理はそのまま維持
       if (/^https?:\/\//.test(part)) {
-        return (
-          <a
-            key={`${part}-${index}`}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={LINK_STYLE}
-          >
-            {part}
-          </a>
-        );
+        return <a key={`${part}-${index}`} href={part} target="_blank" rel="noopener noreferrer" style={LINK_STYLE}>{part}</a>;
       }
       if (/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(part)) {
-        return (
-          <a
-            key={`${part}-${index}`}
-            href={`mailto:${part}`}
-            style={LINK_STYLE}
-          >
-            {part}
-          </a>
-        );
+        return <a key={`${part}-${index}`} href={`mailto:${part}`} style={LINK_STYLE}>{part}</a>;
       }
       return part;
     });
   } catch {
-    return html;
+    return text;
   }
 };
 // メールの署名部分を削除する関数
-const removeSignature = (text = "") => {
+/*const removeSignature = (text = "") => {
   const bodyLines = [];
   for (const line of text.split(/\n/)) {
     if (
@@ -219,7 +202,7 @@ const removeSignature = (text = "") => {
     bodyLines.push(line);
   }
   return bodyLines.join("\n").trim();
-};
+};*/
 // 募集人数を抽出する関数
 const extractRecruitment = (content = "") => {
   const match = content.match(/([0-9０-９]+|複数|若干)名(以上)?/);

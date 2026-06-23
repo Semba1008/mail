@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
 // 1ページあたりの表示件数
-const PAGE_SIZE = 23;
+const PAGE_SIZE = 24;
 // 都道府県名の揺らぎを吸収するための正規化関数
 const normalize = (name) => name?.replace(/(都|道|府|県)$/, "") || "";
 // 地域ごとの都道府県リスト

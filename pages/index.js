@@ -189,20 +189,7 @@ const formatContent = (text) => {
     return text;
   }
 };
-// メールの署名部分を削除する関数
-/*const removeSignature = (text = "") => {
-  const bodyLines = [];
-  for (const line of text.split(/\n/)) {
-    if (
-      /[◇◆□■ー\-=＝*＊#＃]{5,}/.test(line) ||
-      /^(【会社名】|【連絡先】|■署名|URL：)/.test(line)
-    ) {
-      break;
-    }
-    bodyLines.push(line);
-  }
-  return bodyLines.join("\n").trim();
-};*/
+
 // 募集人数を抽出する関数
 const extractRecruitment = (content = "") => {
   const match = content.match(/([0-9０-９]+|複数|若干)名(以上)?/);
@@ -356,6 +343,10 @@ export default function Home() {
   const [appliedIds, setAppliedIds] = useState([]);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
+  useEffect(() => {
+  setCurrentPage(1);
+}, [searchQuery, selectedPrefs, selectedSkills, favFilters, viewMode, selectedRegion]);
+
   useEffect(() => {
     const checkLogin = async () => {
       try {
@@ -599,7 +590,7 @@ export default function Home() {
         }
 
         // 5. 検索・場所・スキル・リモート条件
-        const pureContent = removeSignature(project.content || "");
+        const pureContent = project.content || "";
         const searchableText =
           `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
         const projectLocation = (project.location || "").trim();
@@ -1512,7 +1503,7 @@ export default function Home() {
                   {/* 通常のページ番号ボタン */}
                   {paginationRange.map((page, idx) => (
                     <button
-                      key={idx}
+                      key={page}
                       onClick={() =>
                         typeof page === "number" && changePage(page)
                       }

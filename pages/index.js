@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import DOMPurify from 'dompurify';
 
-import DOMPurify from 'dompurify'; // npm install dompurify
 
 const ContentDisplay = ({ content }) => {
   if (!content) return null;

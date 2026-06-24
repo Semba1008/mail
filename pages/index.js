@@ -1776,10 +1776,20 @@ export default function Home() {
               }}
             >
               {selectedProject.content
-                ? // HTMLタグがあるか判定（"<" が含まれているか）
-                  /<[a-z][\s\S]*>/i.test(selectedProject.content)
-                  ? parse(selectedProject.content) // HTMLならそのままパース
-                  : formatContent(selectedProject.content) // テキストなら自作のformatContentでリンク化
+                ? (() => {
+                    const content = selectedProject.content;
+                    // HTMLメールかどうか判定
+                    if (/<[a-z][\s\S]*>/i.test(content)) {
+                      // bodyタグがあれば、その中身だけを抽出して軽くする
+                      const bodyMatch = content.match(
+                        /<body[^>]*>([\s\S]*)<\/body>/i,
+                      );
+                      const cleanContent = bodyMatch ? bodyMatch[1] : content;
+                      return parse(cleanContent);
+                    }
+                    // プレーンテキストなら既存のリンク化関数
+                    return formatContent(content);
+                  })()
                 : ""}
             </div>
           </div>

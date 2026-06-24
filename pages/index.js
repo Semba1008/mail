@@ -1798,7 +1798,7 @@ export default function Home() {
                         }}
                         style={{
                           width: "100%",
-                          border: "1px solid #ddd",
+                          border: "none",
                           backgroundColor: "white",
                           display: "block", // 隙間対策
                         }}

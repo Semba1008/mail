@@ -1773,24 +1773,29 @@ export default function Home() {
                 fontSize: "0.9rem",
                 lineHeight: "1.6",
                 color: "#4a5568",
+                padding: "10px",
+                border: "1px solid #ccc", // 枠線をつけて、中身があるか確認できるようにする
               }}
             >
-              {selectedProject.content
-                ? (() => {
-                    const content = selectedProject.content;
-                    // HTMLメールかどうか判定
-                    if (/<[a-z][\s\S]*>/i.test(content)) {
-                      // bodyタグがあれば、その中身だけを抽出して軽くする
-                      const bodyMatch = content.match(
-                        /<body[^>]*>([\s\S]*)<\/body>/i,
-                      );
-                      const cleanContent = bodyMatch ? bodyMatch[1] : content;
-                      return parse(cleanContent);
-                    }
-                    // プレーンテキストなら既存のリンク化関数
-                    return formatContent(content);
-                  })()
-                : ""}
+              {(() => {
+                const content = selectedProject?.content;
+                console.log("デバッグ: contentの内容", content); // ブラウザのコンソールで内容を確認
+
+                if (!content) return "本文データがありません";
+
+                // HTML判定と表示
+                if (/<[a-z][\s\S]*>/i.test(content)) {
+                  try {
+                    return parse(content);
+                  } catch (e) {
+                    console.error("パースエラー:", e);
+                    return "HTMLの解析に失敗しました。";
+                  }
+                }
+
+                // テキスト形式ならリンク化
+                return formatContent(content);
+              })()}
             </div>
           </div>
         </div>

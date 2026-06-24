@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import DOMPurify from 'dompurify';
-import parse from 'html-react-parser';
-
+import DOMPurify from "dompurify";
+import parse from "html-react-parser";
 
 const ContentDisplay = ({ content }) => {
   if (!content) return null;
 
   // 1. Base64かどうかを判定する関数
   const isBase64 = (str) => {
-    if (typeof str !== 'string') return false;
+    if (typeof str !== "string") return false;
     // 「PG...」から始まるなど、HTMLメールがBase64化されているケースを考慮
     return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length > 50;
   };
@@ -30,14 +29,16 @@ const ContentDisplay = ({ content }) => {
   if (isHtml) {
     // 安全のためにHTMLをサニタイズして表示
     return (
-      <div 
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(processedContent) }} 
+      <div
+        dangerouslySetInnerHTML={{
+          __html: DOMPurify.sanitize(processedContent),
+        }}
       />
     );
   }
 
   // 4. それ以外はただのテキストとして表示
-  return <div style={{ whiteSpace: 'pre-wrap' }}>{processedContent}</div>;
+  return <div style={{ whiteSpace: "pre-wrap" }}>{processedContent}</div>;
 };
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
@@ -217,10 +218,28 @@ const formatContent = (text) => {
     return text.split(linkRegex).map((part, index) => {
       // リンク化の処理はそのまま維持
       if (/^https?:\/\//.test(part)) {
-        return <a key={`${part}-${index}`} href={part} target="_blank" rel="noopener noreferrer" style={LINK_STYLE}>{part}</a>;
+        return (
+          <a
+            key={`${part}-${index}`}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={LINK_STYLE}
+          >
+            {part}
+          </a>
+        );
       }
       if (/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(part)) {
-        return <a key={`${part}-${index}`} href={`mailto:${part}`} style={LINK_STYLE}>{part}</a>;
+        return (
+          <a
+            key={`${part}-${index}`}
+            href={`mailto:${part}`}
+            style={LINK_STYLE}
+          >
+            {part}
+          </a>
+        );
       }
       return part;
     });
@@ -383,8 +402,15 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
   useEffect(() => {
-  setCurrentPage(1);
-}, [searchQuery, selectedPrefs, selectedSkills, favFilters, viewMode, selectedRegion]);
+    setCurrentPage(1);
+  }, [
+    searchQuery,
+    selectedPrefs,
+    selectedSkills,
+    favFilters,
+    viewMode,
+    selectedRegion,
+  ]);
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -1740,9 +1766,40 @@ export default function Home() {
                 fontSize: "0.9rem",
                 lineHeight: "1.6",
                 color: "#4a5568",
+                padding: "10px",
+                width: "100%",
               }}
             >
-              {selectedProject.content ? parse(selectedProject.content) : ""} 
+              {selectedProject?.content ? (
+                (() => {
+                  const content = selectedProject.content;
+
+                  // 1. HTMLタグ（<html> や <head>）が含まれているか判定
+                  const isFullHtml =
+                    /<html/i.test(content) || /<head/i.test(content);
+
+                  if (isFullHtml) {
+                    // HTMLの場合：iframeで隔離して表示
+                    return (
+                      <iframe
+                        srcDoc={content}
+                        title="Email Content"
+                        style={{
+                          width: "100%",
+                          height: "600px",
+                          border: "1px solid #ddd",
+                          backgroundColor: "white",
+                        }}
+                      />
+                    );
+                  } else {
+                    // テキストの場合：以前のリンク化ロジックを使用
+                    return <div>{formatContent(content)}</div>;
+                  }
+                })()
+              ) : (
+                <div>データがありません</div>
+              )}
             </div>
           </div>
         </div>

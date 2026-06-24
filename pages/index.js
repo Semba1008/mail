@@ -401,13 +401,13 @@ export default function Home() {
   const [appliedIds, setAppliedIds] = useState([]);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
-  const [isLoaded,setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-  setIsLoaded(false); // プロジェクトが選択されるたびにリセット
-  const timer = setTimeout(() => setIsLoaded(true), 150);
-  return () => clearTimeout(timer);
-}, [selectedProject]);
+    setIsLoaded(false); // プロジェクトが選択されるたびにリセット
+    const timer = setTimeout(() => setIsLoaded(true), 150);
+    return () => clearTimeout(timer);
+  }, [selectedProject]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1779,50 +1779,65 @@ export default function Home() {
               }}
             >
               {selectedProject?.content ? (
-    isLoaded ? (
-      // 読み込み完了後に iframe を描画
-      (() => {
-        const content = selectedProject.content;
-        const isFullHtml = /<html|<head|<body/i.test(content.substring(0, 100));
-
-        if (isFullHtml) {
-          return (
-            <iframe
-              key={selectedProject.id}
-              srcDoc={content}
-              title="Email Content"
-              scrolling="no"
-              onLoad={(e) => {
-                try {
-                  e.target.style.height = e.target.contentWindow.document.body.scrollHeight + 20 + "px";
-                } catch (err) {
-                            // 外部ドメインが含まれている場合のセキュリティエラー対策
-                            e.target.style.height = "600px"; // 失敗した場合はデフォルトの高さ
-                          }
-                        }}
-                        style={{
-                          width: "100%",
-                          border: "none",
-                          backgroundColor: "white",
-                          display: "block", // 隙間対策
-                        }}
-                      />
+                isLoaded ? (
+                  // 読み込み完了後に iframe を描画
+                  (() => {
+                    const content = selectedProject.content;
+                    const isFullHtml = /<html|<head|<body/i.test(
+                      content.substring(0, 100),
                     );
-                  } else {
-                    // テキストの場合：以前のリンク化ロジックを使用
-                    return <div>{formatContent(content)}</div>;
-                  }
-                })()
+
+                    if (isFullHtml) {
+                      return (
+                        <iframe
+                          key={selectedProject.id}
+                          srcDoc={content}
+                          loading="lazy"
+                          title="Email Content"
+                          scrolling="no"
+                          onLoad={(e) => {
+                            try {
+                              e.target.style.height =
+                                e.target.contentWindow.document.body
+                                  .scrollHeight +
+                                20 +
+                                "px";
+                            } catch (err) {
+                              // 外部ドメインが含まれている場合のセキュリティエラー対策
+                              e.target.style.height = "600px"; // 失敗した場合はデフォルトの高さ
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            border: "none",
+                            backgroundColor: "white",
+                            display: "block", // 隙間対策
+                          }}
+                        />
+                      );
+                    } else {
+                      // テキストの場合：以前のリンク化ロジックを使用
+                      return <div>{formatContent(content)}</div>;
+                    }
+                  })()
+                ) : (
+                  // 読み込み中のスケルトン表示（ラグを感じさせない）
+                  <div
+                    style={{
+                      height: "400px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color:"#888"
+                    }}
+                  >
+                    Loading...
+                  </div>
+                )
               ) : (
-      // 読み込み中のスケルトン表示（ラグを感じさせない）
-      <div style={{ height: "400px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        メール本文を読み込んでいます...
-      </div>
-    )
-  ) : (
-    <div>データがありません</div>
-  )}
-</div>
+                <div>データがありません</div>
+              )}
+            </div>
           </div>
         </div>
       )}

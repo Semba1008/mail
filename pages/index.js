@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import DOMPurify from "dompurify";
-import parse from "html-react-parser";
+import DOMPurify from 'dompurify';
+import parse from 'html-react-parser';
+
 
 const ContentDisplay = ({ content }) => {
   if (!content) return null;
 
   // 1. Base64かどうかを判定する関数
   const isBase64 = (str) => {
-    if (typeof str !== "string") return false;
+    if (typeof str !== 'string') return false;
     // 「PG...」から始まるなど、HTMLメールがBase64化されているケースを考慮
     return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length > 50;
   };
@@ -29,16 +30,14 @@ const ContentDisplay = ({ content }) => {
   if (isHtml) {
     // 安全のためにHTMLをサニタイズして表示
     return (
-      <div
-        dangerouslySetInnerHTML={{
-          __html: DOMPurify.sanitize(processedContent),
-        }}
+      <div 
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(processedContent) }} 
       />
     );
   }
 
   // 4. それ以外はただのテキストとして表示
-  return <div style={{ whiteSpace: "pre-wrap" }}>{processedContent}</div>;
+  return <div style={{ whiteSpace: 'pre-wrap' }}>{processedContent}</div>;
 };
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
@@ -212,46 +211,21 @@ const decodeHtml = (html) => {
 };
 // テキスト内のURLやメールアドレスをリンクに変換する関数
 // 改善案：Base64/HTMLデコードをスキップし、純粋なリンク化のみを行う
-// 1. 既存の linkify 処理用関数（今の関数を流用）
 const formatContent = (text) => {
-  const linkRegex = /(https?:\/\/[^\s<>"']+|[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,})/g;
-  return text.split(linkRegex).map((part, index) => {
-    if (/^https?:\/\//.test(part)) {
-      return (
-        <a
-          key={`${part}-${index}`}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={LINK_STYLE}
-        >
-          {part}
-        </a>
-      );
-    }
-    if (/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(part)) {
-      return (
-        <a key={`${part}-${index}`} href={`mailto:${part}`} style={LINK_STYLE}>
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
-};
-
-// 2. HTMLかプレーンテキストかを判定して表示するラッパー関数
-const renderContent = (content) => {
-  // HTMLタグが含まれているかチェック
-  const isHtml = /<[a-z][\s\S]*>/i.test(content);
-
-  if (isHtml) {
-    // HTMLの場合：html-react-parserを使って表示
-    // ※インポート: import parse from 'html-react-parser';
-    return <div>{parse(content)}</div>;
-  } else {
-    // プレーンテキストの場合：これまでの関数でリンク化
-    return <div>{formatContent(content)}</div>;
+  try {
+    const linkRegex = /(https?:\/\/[^\s<>"']+|[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,})/g;
+    return text.split(linkRegex).map((part, index) => {
+      // リンク化の処理はそのまま維持
+      if (/^https?:\/\//.test(part)) {
+        return <a key={`${part}-${index}`} href={part} target="_blank" rel="noopener noreferrer" style={LINK_STYLE}>{part}</a>;
+      }
+      if (/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(part)) {
+        return <a key={`${part}-${index}`} href={`mailto:${part}`} style={LINK_STYLE}>{part}</a>;
+      }
+      return part;
+    });
+  } catch {
+    return text;
   }
 };
 
@@ -409,15 +383,8 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
   useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchQuery,
-    selectedPrefs,
-    selectedSkills,
-    favFilters,
-    viewMode,
-    selectedRegion,
-  ]);
+  setCurrentPage(1);
+}, [searchQuery, selectedPrefs, selectedSkills, favFilters, viewMode, selectedRegion]);
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -1773,29 +1740,9 @@ export default function Home() {
                 fontSize: "0.9rem",
                 lineHeight: "1.6",
                 color: "#4a5568",
-                padding: "10px",
-                border: "1px solid #ccc", // 枠線をつけて、中身があるか確認できるようにする
               }}
             >
-              {(() => {
-                const content = selectedProject?.content;
-                console.log("デバッグ: contentの内容", content); // ブラウザのコンソールで内容を確認
-
-                if (!content) return "本文データがありません";
-
-                // HTML判定と表示
-                if (/<[a-z][\s\S]*>/i.test(content)) {
-                  try {
-                    return parse(content);
-                  } catch (e) {
-                    console.error("パースエラー:", e);
-                    return "HTMLの解析に失敗しました。";
-                  }
-                }
-
-                // テキスト形式ならリンク化
-                return formatContent(content);
-              })()}
+              {selectedProject.content ? parse(selectedProject.content) : ""} 
             </div>
           </div>
         </div>

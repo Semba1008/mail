@@ -1556,7 +1556,7 @@ export default function Home() {
                     </button>
                   ))}
 
-                  {/* 1ページ次に進む */}
+                  {/* 1ページ次に進む! */}
                   <button
                     onClick={() =>
                       changePage(Math.min(currentPage + 1, totalPages))

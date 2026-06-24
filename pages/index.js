@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import DOMPurify from 'dompurify';
+import parse from 'html-react-parser';
 
 
 const ContentDisplay = ({ content }) => {
@@ -1741,7 +1742,7 @@ export default function Home() {
                 color: "#4a5568",
               }}
             >
-              <ContentDisplay content={selectedProject.content} />
+              {selectedProject.content ? parse(selectedProject.content) : ""} 
             </div>
           </div>
         </div>

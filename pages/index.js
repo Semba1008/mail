@@ -1779,61 +1779,31 @@ export default function Home() {
               }}
             >
               {selectedProject?.content ? (
-                isLoaded ? (
-                  // 読み込み完了後に iframe を描画
-                  (() => {
-                    const content = selectedProject.content;
-                    const isFullHtml = /<html|<head|<body/i.test(
-                      content.substring(0, 100),
-                    );
+                (() => {
+                  const content = selectedProject.content;
+                  const isFullHtml = /<html|<head|<body/i.test(
+                    content.substring(0, 100),
+                  );
 
-                    if (isFullHtml) {
-                      return (
-                        <iframe
-                          key={selectedProject.id}
-                          srcDoc={content}
-                          loading="lazy"
-                          title="Email Content"
-                          scrolling="no"
-                          onLoad={(e) => {
-                            try {
-                              e.target.style.height =
-                                e.target.contentWindow.document.body
-                                  .scrollHeight +
-                                20 +
-                                "px";
-                            } catch (err) {
-                              // 外部ドメインが含まれている場合のセキュリティエラー対策
-                              e.target.style.height = "600px"; // 失敗した場合はデフォルトの高さ
-                            }
-                          }}
-                          style={{
-                            width: "100%",
-                            border: "none",
-                            backgroundColor: "white",
-                            display: "block", // 隙間対策
-                          }}
-                        />
-                      );
-                    } else {
-                      // テキストの場合：以前のリンク化ロジックを使用
-                      return <div>{formatContent(content)}</div>;
-                    }
-                  })()
-                ) : (
-                  // 読み込み中のスケルトン表示（ラグを感じさせない）
-                  <div
-                    style={{
-                      height: "400px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color:"#888"
-                    }}
-                  >
-                    Loading...
-                  </div>
-                )
+                  if (isFullHtml) {
+                    return (
+                      <iframe
+                        key={selectedProject.id}
+                        srcDoc={content}
+                        title="Email Content"
+                        // スクロールなしで枠内に収めるためのCSS
+                        style={{
+                          width: "100%",
+                          height: "500px", // ひとまず固定高にするか、cssで調整
+                          border: "none",
+                          backgroundColor: "white",
+                        }}
+                      />
+                    );
+                  } else {
+                    return <div>{formatContent(content)}</div>;
+                  }
+                })()
               ) : (
                 <div>データがありません</div>
               )}

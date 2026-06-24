@@ -7,9 +7,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "dompurify": "^3.4.11",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "@supabase/supabase-js": "latest"
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5"
   }
 }

@@ -1,5 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import DOMPurify from 'dompurify';
+
+
+const ContentDisplay = ({ content }) => {
+  if (!content) return null;
+
+  // 1. Base64かどうかを判定する関数
+  const isBase64 = (str) => {
+    if (typeof str !== 'string') return false;
+    // 「PG...」から始まるなど、HTMLメールがBase64化されているケースを考慮
+    return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length > 50;
+  };
+
+  // 2. Base64ならデコードする
+  let processedContent = content;
+  if (isBase64(content)) {
+    try {
+      processedContent = atob(content);
+    } catch (e) {
+      console.error("Base64デコード失敗:", e);
+    }
+  }
+
+  // 3. HTMLタグが含まれているか判定
+  const isHtml = /<[a-z][\s\S]*>/i.test(processedContent);
+
+  if (isHtml) {
+    // 安全のためにHTMLをサニタイズして表示
+    return (
+      <div 
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(processedContent) }} 
+      />
+    );
+  }
+
+  // 4. それ以外はただのテキストとして表示
+  return <div style={{ whiteSpace: 'pre-wrap' }}>{processedContent}</div>;
+};
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
 // 1ページあたりの表示件数
@@ -189,20 +227,7 @@ const formatContent = (text) => {
     return text;
   }
 };
-// メールの署名部分を削除する関数
-/*const removeSignature = (text = "") => {
-  const bodyLines = [];
-  for (const line of text.split(/\n/)) {
-    if (
-      /[◇◆□■ー\-=＝*＊#＃]{5,}/.test(line) ||
-      /^(【会社名】|【連絡先】|■署名|URL：)/.test(line)
-    ) {
-      break;
-    }
-    bodyLines.push(line);
-  }
-  return bodyLines.join("\n").trim();
-};*/
+
 // 募集人数を抽出する関数
 const extractRecruitment = (content = "") => {
   const match = content.match(/([0-9０-９]+|複数|若干)名(以上)?/);
@@ -356,6 +381,10 @@ export default function Home() {
   const [appliedIds, setAppliedIds] = useState([]);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
+  useEffect(() => {
+  setCurrentPage(1);
+}, [searchQuery, selectedPrefs, selectedSkills, favFilters, viewMode, selectedRegion]);
+
   useEffect(() => {
     const checkLogin = async () => {
       try {
@@ -599,7 +628,7 @@ export default function Home() {
         }
 
         // 5. 検索・場所・スキル・リモート条件
-        const pureContent = removeSignature(project.content || "");
+        const pureContent = project.content || "";
         const searchableText =
           `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
         const projectLocation = (project.location || "").trim();
@@ -1512,7 +1541,7 @@ export default function Home() {
                   {/* 通常のページ番号ボタン */}
                   {paginationRange.map((page, idx) => (
                     <button
-                      key={idx}
+                      key={page}
                       onClick={() =>
                         typeof page === "number" && changePage(page)
                       }
@@ -1527,7 +1556,7 @@ export default function Home() {
                     </button>
                   ))}
 
-                  {/* 1ページ次に進む */}
+                  {/* 1ページ次に進む! */}
                   <button
                     onClick={() =>
                       changePage(Math.min(currentPage + 1, totalPages))
@@ -1712,7 +1741,7 @@ export default function Home() {
                 color: "#4a5568",
               }}
             >
-              {formatContent(selectedProject.content)}
+              <ContentDisplay content={selectedProject.content} />
             </div>
           </div>
         </div>

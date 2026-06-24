@@ -1789,14 +1789,35 @@ export default function Home() {
                     return (
                       <iframe
                         key={selectedProject.id}
-                        srcDoc={content}
+                        srcDoc={`
+                                <html>
+                                  <head>
+                                    <style>
+                                        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+                                    </style>
+                                  </head>
+                                  <body>${content}</body>
+                                </html>
+                               `}
                         title="Email Content"
-                        // スクロールなしで枠内に収めるためのCSS
+                        scrolling="no" // 1. スクロールバーを非表示にする
+                        onLoad={(e) => {
+                          // 2. 読み込み完了後に一度だけ高さを合わせる（ガタつきを抑える）
+                          const target = e.target;
+                          if (
+                            target.contentWindow.document.body.scrollHeight > 0
+                          ) {
+                            target.style.height =
+                              target.contentWindow.document.body.scrollHeight +
+                              "px";
+                          }
+                        }}
                         style={{
                           width: "100%",
-                          height: "500px", // ひとまず固定高にするか、cssで調整
+                          minHeight: "300px", // 3. 最初からある程度の高さを確保しておく（ラグ感を消す）
                           border: "none",
                           backgroundColor: "white",
+                          display: "block",
                         }}
                       />
                     );

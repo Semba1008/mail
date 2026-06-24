@@ -1784,11 +1784,23 @@ export default function Home() {
                       <iframe
                         srcDoc={content}
                         title="Email Content"
+                        scrolling="no" // スクロールバーを確実にオフ
+                        onLoad={(e) => {
+                          try {
+                            const doc = e.target.contentWindow.document;
+                            // コンテンツの高さ + 余裕を持たせる
+                            e.target.style.height =
+                              doc.body.scrollHeight + 20 + "px";
+                          } catch (err) {
+                            // 外部ドメインが含まれている場合のセキュリティエラー対策
+                            e.target.style.height = "600px"; // 失敗した場合はデフォルトの高さ
+                          }
+                        }}
                         style={{
                           width: "100%",
-                          height: "600px",
                           border: "1px solid #ddd",
                           backgroundColor: "white",
+                          display: "block", // 隙間対策
                         }}
                       />
                     );

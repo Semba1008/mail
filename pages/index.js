@@ -1763,7 +1763,7 @@ export default function Home() {
                 (() => {
                   const content = selectedProject.content;
                   const isFullHtml = /<html|<head|<body/i.test(
-                    content.substring(0, 100),
+                    content.substring(0, 200),
                   );
 
                   if (isFullHtml) {
@@ -1782,7 +1782,7 @@ export default function Home() {
                                `}
                         title="Email Content"
                         scrolling="no" // 1. スクロールバーを非表示にする
-                        sandbox="allow-scripts allow-popups"
+                        sandbox="allow-scripts allow-popups allow-origin"
                         onLoad={(e) => {
                           const target = e.target;
                           // 高さを合わせる

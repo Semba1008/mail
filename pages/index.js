@@ -1801,6 +1801,7 @@ export default function Home() {
                                `}
                         title="Email Content"
                         scrolling="no" // 1. スクロールバーを非表示にする
+                        sandbox="allow-scripts allow-popups"
                         onLoad={(e) => {
                           // 2. 読み込み完了後に一度だけ高さを合わせる（ガタつきを抑える）
                           const target = e.target;

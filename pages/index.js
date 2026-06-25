@@ -6,23 +6,39 @@ import parse from "html-react-parser";
 const ContentDisplay = ({ content }) => {
   if (!content) return null;
 
-  // 1. HTMLタグが含まれているか判定
-  // `<` が含まれていればHTMLとみなすのが一般的です
-  const isHtml = /<[a-z][\s\S]*>/i.test(content);
+  // 1. Base64かどうかを判定する関数
+  const isBase64 = (str) => {
+    if (typeof str !== "string") return false;
+    // 「PG...」から始まるなど、HTMLメールがBase64化されているケースを考慮
+    return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length > 50;
+  };
+
+  // 2. Base64ならデコードする
+  let processedContent = content;
+  if (isBase64(content)) {
+    try {
+      processedContent = atob(content);
+    } catch (e) {
+      console.error("Base64デコード失敗:", e);
+    }
+  }
+
+  // 3. HTMLタグが含まれているか判定
+  const isHtml = /<[a-z][\s\S]*>/i.test(processedContent);
 
   if (isHtml) {
+    // 安全のためにHTMLをサニタイズして表示
     return (
       <div
-        className="email-content" // 必要に応じてCSSクラスを付与
         dangerouslySetInnerHTML={{
-          __html: DOMPurify.sanitize(content),
+          __html: DOMPurify.sanitize(processedContent),
         }}
       />
     );
   }
 
-  // 2. それ以外はただのテキストとして表示
-  return <div style={{ whiteSpace: "pre-wrap" }}>{content}</div>;
+  // 4. それ以外はただのテキストとして表示
+  return <div style={{ whiteSpace: "pre-wrap" }}>{processedContent}</div>;
 };
 
 const LINK_STYLE = { color: "#3182ce", textDecoration: "underline" };
@@ -187,18 +203,24 @@ const storage = {
     }
   },
 };
+// HTMLエンティティをデコードする関数
+const decodeHtml = (html) => {
+  if (typeof window === "undefined") return html;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = html;
+  return textarea.value;
+};
+// テキスト内のURLやメールアドレスをリンクに変換する関数
+// 改善案：Base64/HTMLデコードをスキップし、純粋なリンク化のみを行う
 const formatContent = (text) => {
-  if (!text) return null;
   try {
-    // 正規表現に括弧 () を付けることで、マッチした部分も配列として保持されます
     const linkRegex = /(https?:\/\/[^\s<>"']+|[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,})/g;
-
     return text.split(linkRegex).map((part, index) => {
-      // 1. URLの場合
+      // リンク化の処理はそのまま維持
       if (/^https?:\/\//.test(part)) {
         return (
           <a
-            key={index}
+            key={`${part}-${index}`}
             href={part}
             target="_blank"
             rel="noopener noreferrer"
@@ -208,23 +230,20 @@ const formatContent = (text) => {
           </a>
         );
       }
-      // 2. メールアドレスの場合
       if (/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(part)) {
         return (
-          <a key={index} href={`mailto:${part}`} style={LINK_STYLE}>
+          <a
+            key={`${part}-${index}`}
+            href={`mailto:${part}`}
+            style={LINK_STYLE}
+          >
             {part}
           </a>
         );
       }
-      // 3. それ以外のテキスト（改行対策を追加）
-      return (
-        <span key={index} style={{ whiteSpace: "pre-wrap" }}>
-          {part}
-        </span>
-      );
+      return part;
     });
-  } catch (e) {
-    console.error("Link formatting error:", e);
+  } catch {
     return text;
   }
 };
@@ -1763,7 +1782,7 @@ export default function Home() {
                 (() => {
                   const content = selectedProject.content;
                   const isFullHtml = /<html|<head|<body/i.test(
-                    content.substring(0, 200),
+                    content.substring(0, 100),
                   );
 
                   if (isFullHtml) {
@@ -1782,10 +1801,10 @@ export default function Home() {
                                `}
                         title="Email Content"
                         scrolling="no" // 1. スクロールバーを非表示にする
-                        sandbox="allow-scripts allow-popups allow-origin"
+                        sandbox="allow-scripts allow-popups"
                         onLoad={(e) => {
+                          // 2. 読み込み完了後に一度だけ高さを合わせる（ガタつきを抑える）
                           const target = e.target;
-                          // 高さを合わせる
                           if (
                             target.contentWindow.document.body.scrollHeight > 0
                           ) {
@@ -1793,32 +1812,18 @@ export default function Home() {
                               target.contentWindow.document.body.scrollHeight +
                               "px";
                           }
-                          // 読み込み完了後に表示（透明度を1にする）
-                          target.style.opacity = 1;
                         }}
                         style={{
                           width: "100%",
-                          minHeight: "300px",
+                          minHeight: "300px", // 3. 最初からある程度の高さを確保しておく（ラグ感を消す）
                           border: "none",
                           backgroundColor: "white",
                           display: "block",
-                          // 以下を追加・修正
-                          opacity: 0,
-                          transition: "opacity 0.3s ease-in",
                         }}
                       />
                     );
                   } else {
-                    return (
-                      <div
-                        style={{
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        {formatContent(content)}
-                      </div>
-                    );
+                    return <div>{formatContent(content)}</div>;
                   }
                 })()
               ) : (

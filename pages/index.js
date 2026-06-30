@@ -1791,7 +1791,8 @@ export default function Home() {
                         key={selectedProject.id}
                         srcDoc={`
                                 <html>
-                                  <head>
+                                  <head> 
+                                    <base target="_blank">
                                     <style>
                                         body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
                                     </style>

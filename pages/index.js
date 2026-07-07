@@ -694,7 +694,7 @@ export default function Home() {
                 />
 
                 {showSuggestions && history.length > 0 && (
-                  /* 🟢 max-heightを履歴5件分相当の「220px」に固定し、あふれたらスクロール（overflowY: "auto"）にしました */
+                  /* 🟢 max-heightを履歴5件分相当の「220px」に固定し、あふれたらスクロール（overflowY: "auto"）にした */
                   <div
                     style={{
                       position: "absolute",
@@ -1301,7 +1301,7 @@ export default function Home() {
                 marginBottom: 25,
               }}
             >
-              この操作は取り消せません。
+              削除後は修復できません。
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
               <button

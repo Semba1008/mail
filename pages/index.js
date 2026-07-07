@@ -1781,9 +1781,7 @@ export default function Home() {
               {selectedProject?.content ? (
                 (() => {
                   const content = selectedProject.content;
-                  const isFullHtml = /<html|<head|<body/i.test(
-                    content.substring(0, 100),
-                  );
+                  const isFullHtml = /<[a-z][\s\S]*>/i.test(content);
 
                   if (isFullHtml) {
                     return (

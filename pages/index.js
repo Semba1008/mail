@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import dynamic from "next/dynamic";
 import parse from "html-react-parser";
 
 import { ProjectCard } from "../components/ProjectCard";
@@ -11,6 +12,11 @@ import { PAGE_SIZE } from "../constants/config";
 import { storage } from "../utils/storage";
 import { normalize, formatContent } from "../utils/format";
 import { getProjectCategories } from "../utils/project";
+
+const ProjectStatsModal = dynamic(
+  () => import("../components/ProjectStatsModal"),
+  { ssr: false },
+);
 
 // メインコンポーネント
 export default function Home() {
@@ -35,6 +41,7 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
 
   useEffect(() => {
     setIsLoaded(false); // プロジェクトが選択されるたびにリセット
@@ -540,6 +547,22 @@ export default function Home() {
                   </button>
                 );
               })}
+              <button
+                onClick={() => setShowStatsModal(true)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#4a5568",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  padding: "0 25px",
+                  height: "100%",
+                  borderBottom: "3px solid transparent",
+                  boxSizing: "border-box",
+                }}
+              >
+                📊 グラフ
+              </button>
             </div>
           </div>
           {viewMode === "all" && (
@@ -1277,6 +1300,12 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+      {showStatsModal && (
+        <ProjectStatsModal
+          projects={projects}
+          onClose={() => setShowStatsModal(false)}
+        />
       )}
       {deleteTargetId && (
         <div

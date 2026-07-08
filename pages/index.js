@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import dynamic from "next/dynamic";
 import parse from "html-react-parser";
 
 import { ProjectCard } from "../components/ProjectCard";
+import { Pagination } from "../components/Pagination";
 import { styles } from "../styles/index.styles";
 import { regionalPrefectures } from "../constants/regions";
 import { skillCategories } from "../constants/skills";
@@ -12,11 +12,6 @@ import { PAGE_SIZE } from "../constants/config";
 import { storage } from "../utils/storage";
 import { normalize, formatContent } from "../utils/format";
 import { getProjectCategories } from "../utils/project";
-
-const ProjectStatsModal = dynamic(
-  () => import("../components/ProjectStatsModal"),
-  { ssr: false },
-);
 
 // メインコンポーネント
 export default function Home() {
@@ -41,7 +36,6 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
   const [isLoaded, setIsLoaded] = useState(false);
-  const [showStatsModal, setShowStatsModal] = useState(false);
 
   useEffect(() => {
     setIsLoaded(false); // プロジェクトが選択されるたびにリセット
@@ -548,7 +542,7 @@ export default function Home() {
                 );
               })}
               <button
-                onClick={() => setShowStatsModal(true)}
+                onClick={() => router.push("/stats")}
                 style={{
                   background: "none",
                   border: "none",
@@ -940,6 +934,13 @@ export default function Home() {
               )}
             </div>
           )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            paginationRange={paginationRange}
+            changePage={changePage}
+            style={{ marginTop: 0, marginBottom: 40 }}
+          />
           <div
             style={{
               marginBottom: 15,
@@ -990,124 +991,12 @@ export default function Home() {
                   />
                 ))}
               </div>
-              {/*一気に飛べるボタンを追加 */}
-              {totalPages > 1 && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: 8,
-                    marginTop: 20,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {/* 最初のページへ一気に戻る */}
-                  <button
-                    onClick={() => changePage(1)}
-                    disabled={currentPage === 1}
-                    style={{
-                      ...styles.pageBtn,
-                      opacity: currentPage === 1 ? 0.5 : 1,
-                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    最初のページ
-                  </button>
-
-                  {/* 5ページ前に戻る */}
-                  <button
-                    onClick={() => changePage(Math.max(currentPage - 5, 1))}
-                    disabled={currentPage === 1}
-                    style={{
-                      ...styles.pageBtn,
-                      opacity: currentPage === 1 ? 0.5 : 1,
-                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    5ページ前へ
-                  </button>
-
-                  {/* 1ページ前に戻る */}
-                  <button
-                    onClick={() => changePage(Math.max(currentPage - 1, 1))}
-                    disabled={currentPage === 1}
-                    style={{
-                      ...styles.pageBtn,
-                      opacity: currentPage === 1 ? 0.5 : 1,
-                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                    }}
-                    title="前へ"
-                  >
-                    ‹
-                  </button>
-
-                  {/* 通常のページ番号ボタン */}
-                  {paginationRange.map((page, idx) => (
-                    <button
-                      key={page}
-                      onClick={() =>
-                        typeof page === "number" && changePage(page)
-                      }
-                      style={{
-                        ...styles.pageBtn,
-                        backgroundColor:
-                          currentPage === page ? "#1a365d" : "#fff",
-                        color: currentPage === page ? "#fff" : "#2d3748",
-                      }}
-                    >
-                      {page}
-                    </button>
-                  ))}
-
-                  {/* 1ページ次に進む! */}
-                  <button
-                    onClick={() =>
-                      changePage(Math.min(currentPage + 1, totalPages))
-                    }
-                    disabled={currentPage === totalPages}
-                    style={{
-                      ...styles.pageBtn,
-                      opacity: currentPage === totalPages ? 0.5 : 1,
-                      cursor:
-                        currentPage === totalPages ? "not-allowed" : "pointer",
-                    }}
-                    title="次へ"
-                  >
-                    ›
-                  </button>
-
-                  {/* 5ページ次に進む */}
-                  <button
-                    onClick={() =>
-                      changePage(Math.min(currentPage + 5, totalPages))
-                    }
-                    disabled={currentPage === totalPages}
-                    style={{
-                      ...styles.pageBtn,
-                      opacity: currentPage === totalPages ? 0.5 : 1,
-                      cursor:
-                        currentPage === totalPages ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    5ページ次へ
-                  </button>
-
-                  {/* 最後のページへ一気に飛ぶ */}
-                  <button
-                    onClick={() => changePage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    style={{
-                      ...styles.pageBtn,
-                      opacity: currentPage === totalPages ? 0.5 : 1,
-                      cursor:
-                        currentPage === totalPages ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    最終ページ
-                  </button>
-                </div>
-              )}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                paginationRange={paginationRange}
+                changePage={changePage}
+              />
             </>
           )}
         </main>
@@ -1300,12 +1189,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
-      {showStatsModal && (
-        <ProjectStatsModal
-          projects={projects}
-          onClose={() => setShowStatsModal(false)}
-        />
       )}
       {deleteTargetId && (
         <div

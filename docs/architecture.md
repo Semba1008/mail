@@ -56,4 +56,6 @@ Power Automateからのデータを `projects` テーブルで保持する。`pr
 
 - 詳細な項目定義: [database.md](database.md)
 - 処理シーケンス: [sequence.md](sequence.md)
+- どのファイルが何をしているか: [modules.md](modules.md)
+- 既知の課題・未決事項: [known-issues.md](known-issues.md)
 - 網羅的な仕様: [仕様書.docx](仕様書.docx) / [設計書.docx](設計書.docx)

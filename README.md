@@ -114,3 +114,15 @@ utils/         フォーマット・集計・保存処理などのユーティ�
 | `/login` | ログイン |
 | `/setup-password` | 初回パスワード設定 |
 | `/reset-password` | パスワードリセット |
+
+## ドキュメント
+
+| ファイル | 内容 |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | システム全体構成(Outlook〜Vercel) |
+| [docs/sequence.md](docs/sequence.md) | 主要処理のシーケンス図(Mermaid) |
+| [docs/database.md](docs/database.md) | Supabaseのテーブル項目定義 |
+| [docs/api.md](docs/api.md) | APIエンドポイント仕様(処理フロー・権限・依存テーブル) |
+| [docs/modules.md](docs/modules.md) | どのファイルが何をしているか(修正箇所の特定用) |
+| [docs/known-issues.md](docs/known-issues.md) | 既知の課題・未決事項 |
+| [docs/仕様書.docx](docs/仕様書.docx) / [docs/設計書.docx](docs/設計書.docx) | 網羅的な仕様書・設計書 |

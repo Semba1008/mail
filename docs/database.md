@@ -1,0 +1,74 @@
+# データベース(Supabase)
+
+※ 実スキーマには直接アクセスしていないため、アプリケーションコード上の利用箇所およびPower Automateのアクション内容から復元した項目定義です。
+
+## projects(案件情報)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| projects_id | text | PK。Power Automateがメールのメッセージ ID をそのまま採番して仮登録する |
+| id | bigint | 画面表示・お気に入り等の識別に使う連番 |
+| title | text | 案件名(メール件名) |
+| category | text | カテゴリ判定元の文字列(開発/インフラ/組み込みのいずれかを含む) |
+| location | text | 勤務地(地域絞り込みにも使用) |
+| price | text | 単価(自由記述) |
+| period | text | 期間(自由記述) |
+| end_date | text | 募集期限 |
+| content | text | メール本文 |
+| skills | text | 必須スキル(検索対象) |
+| cc_address | text | メール作成時のCcアドレス |
+| isClosed | boolean | 募集終了フラグ |
+| created_at | timestamp | 登録日時(統計グラフの年月集計に使用) |
+
+## attachments(添付ファイル)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | bigint | PK |
+| attachments_id | text | FK(projects.projects_id)。メールのメッセージIDが設定されるためprojects_idと同一値 |
+| file_name | text | 添付ファイル名(Power AutomateがGUID+拡張子で生成) |
+| file_url | text | Supabase Storage上のファイルURL |
+
+## candidates(人材提案)
+
+他社からの人材紹介メール(自社の募集案件ではなく、他社が紹介する人材の情報)を保存するテーブル。Power AutomateがAI抽出結果の`is_human_resource`をtrueと判定した場合にPOSTされ、同じ内容はprojectsには残さない(仮登録分は削除される)。
+
+| Column | Type | Description |
+|--------|------|-------------|
+| title | text | メール件名 |
+| content | text | メール本文 |
+| location | text | 勤務地(AI抽出) |
+| price | text | 単価(AI抽出) |
+| skills | text | スキル(AI抽出) |
+| period | text | 期間(AI抽出) |
+| end_date | text | 募集期限(AI抽出) |
+| category | text[] | 分類(開発/インフラ/組み込みのうち該当するもの、複数可) |
+| isClosed | boolean | 常にfalse |
+| is_human_resource | boolean | 常にtrue |
+
+## admins(管理者)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| user_email | text | PK。ログインID |
+| password_hash | text | PBKDF2によるハッシュ値。未設定なら初回ログイン扱い |
+| salt | text | ハッシュ生成用ソルト |
+
+## sessions(セッション)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| token | text | PK。UUID形式。Cookieの値と一致 |
+| user_email | text | FK(admins.user_email) |
+
+## ブラウザ側(疑似テーブル・localStorage)
+
+サーバーには保存されず、ブラウザごとに保持される。
+
+| Key | 内容 |
+|-----|------|
+| favorites | お気に入り登録した案件idの一覧 |
+| appliedIds | 応募済みにした案件idの一覧 |
+| history | 閲覧した案件idの履歴(最大50件) |
+| readProjects | 既読にした案件idの一覧 |
+| searchHistory | 検索キーワードの履歴(最大20件) |

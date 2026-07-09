@@ -16,6 +16,7 @@
 | 運用監視 | 添付ファイルのアップロード・登録失敗時のリカバリが無く、失敗した添付ファイルは取り込まれない | ― (Power Automate側) |
 | 監査 | 案件削除・応募状況変更等の操作履歴(いつ・誰が)を記録する監査ログが無い | [pages/api/mails.js](../pages/api/mails.js) |
 | データ整合性 | `candidates`テーブルへの登録内容とprojectsの項目定義が完全には一致しておらず、スキーマの正式な整理が望ましい | ― (Power Automate側) |
+| 運用監視 | CSV自動書き出しはブラウザ(タブ)が開いている間のみ動作するクライアント完結の仕組みであり、サーバー側で定期実行される真のバッチ処理ではない。ブラウザを開かない限り実行されない | [utils/useAutoExportWatcher.js](../utils/useAutoExportWatcher.js) |
 
 ## 未決事項(要確認)
 

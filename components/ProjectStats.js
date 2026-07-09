@@ -20,14 +20,24 @@ import {
   CHART_CATEGORY_LABELS,
   CHART_CATEGORY_ORDER,
   CHART_REGIONS,
+  buildProjectsCsvBlob,
   filterProjectsByPeriod,
   filterProjectsByRegion,
   getAvailableYears,
-  getChartCategory,
   getMonthlyCategoryBreakdown,
   getYearlyMonthlyCounts,
 } from "../utils/projectStats";
 import { saveFile } from "../utils/saveFile";
+import {
+  clearDirectoryHandle,
+  getAutoExportEnabled,
+  isAutoExportSupported,
+  loadDirectoryHandle,
+  requestDirectoryPermission,
+  saveDirectoryHandle,
+  setAutoExportEnabled,
+} from "../utils/autoExport";
+import { useAutoExportWatcher } from "../utils/useAutoExportWatcher";
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -65,6 +75,12 @@ export default function ProjectStats({ projects }) {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [isExporting, setIsExporting] = useState(false);
 
+  const [autoSupported, setAutoSupported] = useState(false);
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [autoFolderName, setAutoFolderName] = useState("");
+  const [autoNeedsReauth, setAutoNeedsReauth] = useState(false);
+  const [autoNotice, setAutoNotice] = useState("");
+
   const regionFilteredProjects = useMemo(
     () => filterProjectsByRegion(projects, selectedRegion),
     [projects, selectedRegion],
@@ -88,6 +104,79 @@ export default function ProjectStats({ projects }) {
   }, [availableYears, selectedYear]);
 
   const chartRef = useRef(null);
+
+  const handleAutoExportResult = (result) => {
+    if (result.type === "needs-reauth") {
+      setAutoNeedsReauth(true);
+      return;
+    }
+    setAutoNeedsReauth(false);
+    setAutoNotice(result.message);
+    if (
+      result.type === "success" &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted"
+    ) {
+      new Notification("案件データの自動書き出し", { body: result.message });
+    }
+  };
+
+  const { runCheckNow } = useAutoExportWatcher(projects, {
+    onResult: handleAutoExportResult,
+  });
+
+  useEffect(() => {
+    if (!isAutoExportSupported()) return;
+    setAutoSupported(true);
+    setAutoEnabled(getAutoExportEnabled());
+
+    (async () => {
+      const handle = await loadDirectoryHandle().catch(() => null);
+      if (handle) setAutoFolderName(handle.name);
+    })();
+  }, []);
+
+  const handleChooseAutoFolder = async () => {
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      await saveDirectoryHandle(handle);
+      setAutoFolderName(handle.name);
+      setAutoNeedsReauth(false);
+      setAutoNotice(`保存先フォルダを「${handle.name}」に設定しました。`);
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        console.error("フォルダ設定エラー:", error);
+      }
+    }
+  };
+
+  const handleClearAutoFolder = async () => {
+    await clearDirectoryHandle().catch(() => {});
+    setAutoFolderName("");
+    setAutoNeedsReauth(false);
+    setAutoEnabled(false);
+    setAutoExportEnabled(false);
+    setAutoNotice("保存先フォルダの設定を解除しました。");
+  };
+
+  const handleToggleAutoEnabled = async (checked) => {
+    setAutoEnabled(checked);
+    setAutoExportEnabled(checked);
+    if (checked && typeof Notification !== "undefined" && Notification.permission === "default") {
+      await Notification.requestPermission().catch(() => {});
+    }
+    if (checked) await runCheckNow();
+  };
+
+  const handleReauthorizeFolder = async () => {
+    const handle = await loadDirectoryHandle().catch(() => null);
+    if (!handle) return;
+    const granted = await requestDirectoryPermission(handle).catch(() => false);
+    if (granted) {
+      setAutoNeedsReauth(false);
+      await runCheckNow();
+    }
+  };
 
   const pieData = useMemo(
     () =>
@@ -176,46 +265,9 @@ export default function ProjectStats({ projects }) {
     }
   };
 
-  const escapeCsvField = (value) => {
-    const str = String(value ?? "");
-    return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-
   const handleExportCsv = async () => {
     setIsExporting(true);
-    const header = [
-      "ID",
-      "案件名",
-      "カテゴリ",
-      "場所",
-      "単価",
-      "期間",
-      "募集期限",
-      "スキル",
-      "登録日",
-    ];
-
-    const rows = [
-      header,
-      ...csvProjects.map((project) => [
-        project.id,
-        project.title,
-        CHART_CATEGORY_LABELS[getChartCategory(project)],
-        project.location,
-        project.price,
-        project.period,
-        project.end_date,
-        project.skills,
-        project.created_at,
-      ]),
-    ];
-
-    const csvContent = rows
-      .map((row) => row.map(escapeCsvField).join(","))
-      .join("\r\n");
-    const blob = new Blob([`${String.fromCharCode(0xfeff)}${csvContent}`], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = buildProjectsCsvBlob(csvProjects);
 
     try {
       await saveFile(blob, `案件一覧_${fileLabel}.csv`, {
@@ -482,6 +534,90 @@ export default function ProjectStats({ projects }) {
               </button>
             </div>
           </div>
+
+          {autoSupported && (
+            <div>
+              <div style={groupLabelStyle}>自動書き出し設定(毎月・前月分CSV)</div>
+              <div style={{ ...controlBoxStyle, flexWrap: "wrap" }}>
+                <button
+                  onClick={handleChooseAutoFolder}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#fff",
+                    color: "#4a5568",
+                    border: "1px solid #cbd5e0",
+                    borderRadius: 6,
+                    fontWeight: "bold",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  {autoFolderName ? "フォルダを変更" : "保存先フォルダを設定"}
+                </button>
+                {autoFolderName && (
+                  <button
+                    onClick={handleClearAutoFolder}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#fff",
+                      color: "#e53e3e",
+                      border: "1px solid #fc8181",
+                      borderRadius: 6,
+                      fontWeight: "bold",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    解除
+                  </button>
+                )}
+                <span style={{ fontSize: "0.78rem", color: "#4a5568" }}>
+                  {autoFolderName ? `保存先: ${autoFolderName}` : "未設定"}
+                </span>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: "0.78rem",
+                    fontWeight: "bold",
+                    color: "#4a5568",
+                    cursor: autoFolderName ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={autoEnabled}
+                    disabled={!autoFolderName}
+                    onChange={(e) => handleToggleAutoEnabled(e.target.checked)}
+                  />
+                  前月分を自動保存する
+                </label>
+                {autoNeedsReauth && (
+                  <button
+                    onClick={handleReauthorizeFolder}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#dd6b20",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      fontWeight: "bold",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    フォルダを再許可
+                  </button>
+                )}
+              </div>
+              {autoNotice && (
+                <div style={{ fontSize: "0.72rem", color: "#718096", marginTop: 4, maxWidth: 260 }}>
+                  {autoNotice}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -518,7 +654,9 @@ export default function ProjectStats({ projects }) {
                     cx="50%"
                     cy="50%"
                     outerRadius={110}
-                    label={(entry) => `${entry.label}: ${entry.value}`}
+                    label={(entry) =>
+                      entry.value > 0 ? `${entry.label}: ${entry.value}` : ""
+                    }
                   >
                     {pieData.map((entry) => (
                       <Cell

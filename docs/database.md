@@ -72,3 +72,13 @@
 | history | 閲覧した案件idの履歴(最大50件) |
 | readProjects | 既読にした案件idの一覧 |
 | searchHistory | 検索キーワードの履歴(最大20件) |
+| autoExportEnabled | CSV自動書き出し機能の有効/無効フラグ(`true`/`false`) |
+| autoExportLastMonth | CSV自動書き出し済みの年月(`YYYY-MM`形式)。同じ月に重複して書き出さないための判定に使用 |
+
+## ブラウザ側(IndexedDB)
+
+CSV自動書き出しの保存先フォルダハンドル(`FileSystemDirectoryHandle`)は構造化複製できるため、localStorageではなくIndexedDBに保存する。
+
+| DB名 | ストア名 | Key | 内容 |
+|---|---|---|---|
+| mailapp-auto-export | handles | csvExportDir | 選択済みの保存先フォルダの`FileSystemDirectoryHandle`。「解除」操作でレコードごと削除される |

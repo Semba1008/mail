@@ -291,6 +291,60 @@ Cookie: token=<セッショントークン>
 | 404 | 管理者が見つかりません | adminsに該当メールアドレスが無い |
 | 500 | 更新に失敗しました | Supabase更新エラー |
 
+## GET /api/automate-results
+
+Power Automateの実行結果(`results`テーブル)を取得する。
+
+**処理フロー**
+1. Cookieの `token` を取得(無ければ401)
+2. `sessions` を `token` で検索(無ければ401)
+3. `sessions.user_email` が `admins` に存在するか確認(無ければ403)
+4. `page` ・ `pageSize(1000)` からrange指定し、`results` を `created_at` 降順取得
+5. `{ data }` を返却
+
+**権限**: 管理者(有効なセッション + adminsに登録済み)
+
+**依存テーブル**: `sessions`, `admins`, `results`
+
+### Request
+
+```
+GET /api/automate-results?page=0
+Cookie: token=<セッショントークン>
+```
+
+| Query | 型 | 必須 | 説明 |
+|---|---|---|---|
+| page | number | 任意(既定0) | 0始まりのページ番号。1ページ1,000件 |
+
+### Response(200)
+
+```json
+{
+  "data": [
+    {
+      "id": "xxxx",
+      "created_at": "2026-07-10T09:03:11.000Z",
+      "AiSearch": true,
+      "input_candidated": false,
+      "isClose": true,
+      "input_projects": true,
+      "allPass": true,
+      "lastPass": true
+    }
+  ]
+}
+```
+
+### Response(エラー)
+
+| Status | Body | 条件 |
+|---|---|---|
+| 401 | `{ "error": "未ログイン" }` | tokenが無い |
+| 401 | `{ "error": "無効なセッション" }` | sessionsに該当tokenが無い |
+| 403 | `{ "error": "権限なし" }` | セッションのuser_emailがadminsに無い |
+| 500 | `{ "error": "<Supabaseのエラーメッセージ>" }` | Supabase側のエラー(例: `results`への権限不足) |
+
 ## 関連ドキュメント
 
 - 認証フローの詳細: [sequence.md](sequence.md)

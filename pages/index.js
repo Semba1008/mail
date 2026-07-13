@@ -12,6 +12,7 @@ import { PAGE_SIZE } from "../constants/config";
 import { storage } from "../utils/storage";
 import { normalize, formatContent } from "../utils/format";
 import { getProjectCategories } from "../utils/project";
+import { useAutoExportWatcher } from "../utils/useAutoExportWatcher";
 
 // メインコンポーネント
 export default function Home() {
@@ -36,13 +37,30 @@ export default function Home() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState("すべて");
   const [isLoaded, setIsLoaded] = useState(false);
+  const [autoExportNotice, setAutoExportNotice] = useState("");
+
+  // 統計グラフ画面(/stats)で設定した「前月分CSVの自動書き出し」を、
+  // このメイン画面を開いたときにも判定・実行する(取りこぼしを減らすため)
+  useAutoExportWatcher(projects, {
+    onResult: (result) => {
+      if (result.type === "needs-reauth") return;
+      setAutoExportNotice(result.message);
+      if (
+        result.type === "success" &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        new Notification("案件データの自動書き出し", { body: result.message });
+      }
+    },
+  });
 
   useEffect(() => {
     setIsLoaded(false); // プロジェクトが選択されるたびにリセット
     const timer = setTimeout(() => setIsLoaded(true), 150);
     return () => clearTimeout(timer);
   }, [selectedProject]);
-
+  
   useEffect(() => {
     setCurrentPage(1);
   }, [
@@ -98,7 +116,7 @@ export default function Home() {
     }
   };
 
-  // 🕒 検索履歴用のStateと保存関数（内部的な保存枠は余裕を持って20件に広げています）
+  // 🕒 検索履歴用のStateと保存関数（内部的な保存枠は20件）
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [history, setHistory] = useState(() => {
     if (typeof window !== "undefined") {
@@ -494,6 +512,41 @@ export default function Home() {
   return (
     <div style={styles.page}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      {autoExportNotice && (
+        <div
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: 20,
+            zIndex: 2000,
+            maxWidth: 320,
+            background: "#1a365d",
+            color: "#fff",
+            padding: "12px 16px",
+            borderRadius: 8,
+            fontSize: "0.85rem",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+          }}
+        >
+          <span style={{ flex: 1 }}>{autoExportNotice}</span>
+          <button
+            onClick={() => setAutoExportNotice("")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#cbd5e0",
+              cursor: "pointer",
+              fontSize: "1rem",
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <nav style={styles.nav}>
         <div style={{ ...styles.navInner, justifyContent: "space-between" }}>
           <div
@@ -556,6 +609,22 @@ export default function Home() {
                 }}
               >
                 📊 グラフ
+              </button>
+              <button
+                onClick={() => router.push("/automate-results")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#4a5568",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  padding: "0 25px",
+                  height: "100%",
+                  borderBottom: "3px solid transparent",
+                  boxSizing: "border-box",
+                }}
+              >
+                🤖 automateの実行結果
               </button>
             </div>
           </div>

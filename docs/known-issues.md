@@ -12,10 +12,11 @@
 | セキュリティ | セッションの強制失効機能が無い(Cookie漏洩時に即時無効化できない) | [pages/api/logout.js](../pages/api/logout.js) |
 | データ運用 | 「365日経過で非表示」は表示フィルタのみで、Supabase上のレコードは自動削除されず無期限に増加する | [pages/index.js](../pages/index.js) |
 | データ運用 | 案件削除は物理削除で取消不可。誤操作時の復旧手段が無い | [pages/api/mails.js](../pages/api/mails.js) |
-| 運用監視 | Power Automate(メール取込)の異常系は能動的な通知が無く、実行履歴を確認しない限り気づけない | ― (Power Automate側) |
+| 運用監視 | Power Automate(メール取込)の異常系は能動的な通知が無い。`/automate-results`画面で結果を確認できるようになったが、管理者が能動的に開いて確認する必要がある(プッシュ通知等は無い) | [pages/automate-results.js](../pages/automate-results.js) |
 | 運用監視 | 添付ファイルのアップロード・登録失敗時のリカバリが無く、失敗した添付ファイルは取り込まれない | ― (Power Automate側) |
 | 監査 | 案件削除・応募状況変更等の操作履歴(いつ・誰が)を記録する監査ログが無い | [pages/api/mails.js](../pages/api/mails.js) |
 | データ整合性 | `candidates`テーブルへの登録内容とprojectsの項目定義が完全には一致しておらず、スキーマの正式な整理が望ましい | ― (Power Automate側) |
+| 運用監視 | CSV自動書き出しはブラウザ(タブ)が開いている間のみ動作するクライアント完結の仕組みであり、サーバー側で定期実行される真のバッチ処理ではない。ブラウザを開かない限り実行されない | [utils/useAutoExportWatcher.js](../utils/useAutoExportWatcher.js) |
 
 ## 未決事項(要確認)
 

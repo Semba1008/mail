@@ -162,6 +162,59 @@ sequenceDiagram
   FS-->>S: 書き込み完了
 ```
 
+## CSV自動書き出し(月次・任意機能)
+
+```mermaid
+sequenceDiagram
+  participant U as 管理者
+  participant H as useAutoExportWatcher
+  participant AU as autoExport.js(IndexedDB/localStorage)
+  participant FS as ブラウザ(File System Access API)
+  participant N as Notification API
+
+  U->>H: ページ表示(マウント時 / 以後30分間隔)
+  H->>AU: getAutoExportEnabled()
+  alt 有効
+    H->>AU: loadDirectoryHandle()
+    AU-->>H: FileSystemDirectoryHandle
+    H->>AU: getLastExportedMonth() / 前月キー算出
+    alt 前月分が未書き出し
+      H->>FS: queryDirectoryPermission(handle)
+      alt 権限あり
+        H->>H: filterProjectsByPeriod + buildProjectsCsvBlob
+        H->>FS: getFileHandle→createWritable→write→close
+        H->>AU: setLastExportedMonth(前月キー)
+        H->>N: 通知("前月分をCSVで自動保存しました")
+      else 権限失効
+        H-->>U: "フォルダを再許可"ボタンを表示(要再許可)
+      end
+    else 書き出し済み
+      H-->>H: 何もしない(重複書き出し防止)
+    end
+  else 無効
+    H-->>H: 何もしない
+  end
+```
+
+## automateの実行結果取得
+
+```mermaid
+sequenceDiagram
+  participant U as ブラウザ
+  participant P as Next.jsページ(/automate-results)
+  participant A as API(/api/automate-results)
+  participant DB as Supabase(results)
+
+  U->>P: ページアクセス
+  P->>A: GET /api/me(セッション確認)
+  A-->>P: 認証OK(未ログインなら/loginへリダイレクト)
+  P->>A: GET /api/automate-results?page=n(page=0,1,2...)
+  A->>DB: SELECT results ORDER BY created_at DESC
+  DB-->>A: 実行結果データ
+  A-->>P: JSON応答(1,000件単位)
+  P-->>U: 一覧表示(日付/月検索、成功・失敗件数、月別/日別の棒グラフ)
+```
+
 ## 関連ドキュメント
 
 - 図解付きの詳細: [設計書.docx](設計書.docx) 3章「詳細設計」

@@ -89,6 +89,49 @@ export const getMonthlyCategoryBreakdown = (projects, year, month) => {
   }));
 };
 
+const escapeCsvField = (value) => {
+  const str = String(value ?? "");
+  return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+};
+
+// 案件一覧(生データ)からCSVのBlobを生成する。手動書き出し・自動書き出し双方から利用する。
+export const buildProjectsCsvBlob = (projectsList) => {
+  const header = [
+    "ID",
+    "案件名",
+    "カテゴリ",
+    "場所",
+    "単価",
+    "期間",
+    "募集期限",
+    "スキル",
+    "登録日",
+  ];
+
+  const rows = [
+    header,
+    ...projectsList.map((project) => [
+      project.id,
+      project.title,
+      CHART_CATEGORY_LABELS[getChartCategory(project)],
+      project.location,
+      project.price,
+      project.period,
+      project.end_date,
+      project.skills,
+      project.created_at,
+    ]),
+  ];
+
+  const csvContent = rows
+    .map((row) => row.map(escapeCsvField).join(","))
+    .join("\r\n");
+
+  return new Blob([`${String.fromCharCode(0xfeff)}${csvContent}`], {
+    type: "text/csv;charset=utf-8;",
+  });
+};
+
 // 指定年の月別×カテゴリ別件数（棒グラフ用）
 export const getYearlyMonthlyCounts = (projects, year) => {
   const monthly = Array.from({ length: 12 }, (_, i) => ({

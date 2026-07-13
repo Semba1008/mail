@@ -61,6 +61,23 @@
 | token | text | PK。UUID形式。Cookieの値と一致 |
 | user_email | text | FK(admins.user_email) |
 
+## results(automateの実行結果)
+
+Power Automateの主要な操作(メール取込フロー)の成功・失敗を記録するテーブル。`automateの実行結果`画面([pages/automate-results.js](../pages/automate-results.js))から閲覧する。
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | text | PK |
+| created_at | timestamptz | 実行日時(既定値`now()`) |
+| AiSearch | boolean | AI分析(Groq API呼び出し)の成否。既定値`false` |
+| input_candidated | boolean | 人材紹介テーブル(candidates)への登録処理の成否。既定値`false` |
+| isClose | boolean | 募集停止テーブル(projectsのisClosed更新)への登録処理の成否。既定値`false` |
+| input_projects | boolean | メイン情報を保持したテーブル(projects)への登録処理の成否。既定値`false` |
+| allPass | boolean | すべての操作が成功した場合のみ`true`。この画面の成功/失敗判定に使用 |
+| lastPass | boolean | 最後の操作まで到達したことを示すフラグ。既定値`false` |
+
+⚠️ このテーブルは`service_role`にSELECT権限が付与されていない状態で作成されており、`/api/automate-results`が`permission denied for table results`で500になる事象が発生した。`GRANT SELECT ON public.results TO service_role;`をSupabase側で実行して解消済み。同様の新規テーブル追加時は権限付与を忘れないよう注意。
+
 ## ブラウザ側(疑似テーブル・localStorage)
 
 サーバーには保存されず、ブラウザごとに保持される。
@@ -72,3 +89,13 @@
 | history | 閲覧した案件idの履歴(最大50件) |
 | readProjects | 既読にした案件idの一覧 |
 | searchHistory | 検索キーワードの履歴(最大20件) |
+| autoExportEnabled | CSV自動書き出し機能の有効/無効フラグ(`true`/`false`) |
+| autoExportLastMonth | CSV自動書き出し済みの年月(`YYYY-MM`形式)。同じ月に重複して書き出さないための判定に使用 |
+
+## ブラウザ側(IndexedDB)
+
+CSV自動書き出しの保存先フォルダハンドル(`FileSystemDirectoryHandle`)は構造化複製できるため、localStorageではなくIndexedDBに保存する。
+
+| DB名 | ストア名 | Key | 内容 |
+|---|---|---|---|
+| mailapp-auto-export | handles | csvExportDir | 選択済みの保存先フォルダの`FileSystemDirectoryHandle`。「解除」操作でレコードごと削除される |

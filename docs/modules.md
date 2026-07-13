@@ -35,7 +35,7 @@
 | [components/ContentDisplay.js](../components/ContentDisplay.js) | 案件本文の表示。Base64エンコードされた本文のデコード、HTML本文のサニタイズ表示(DOMPurify)、プレーンテキスト表示の切替を行う |
 | [components/Pagination.js](../components/Pagination.js) | ページ送りUI(案件一覧の上下2箇所で共有) |
 | [components/ProjectStats.js](../components/ProjectStats.js) | 統計グラフ画面の本体。地域/年/月の絞込、円グラフ・棒グラフ切替、PDF/Excel/CSV書き出し、CSV自動書き出しの設定UI(保存先フォルダ選択・解除、有効/無効切替、再許可) |
-| [components/AutomateResults.js](../components/AutomateResults.js) | automateの実行結果画面の本体。日付/月での絞込検索、すべて/成功のみ/失敗のみフィルタ、全件数・成功数・失敗数のカード表示、月別/日別の成功・失敗積み上げ棒グラフ(recharts)、一覧テーブル(ID/日時/結果。失敗時は`allPass`がfalseの行に対し、AiSearch/input_candidated/isClose/input_projects/lastPassのうちfalseの項目名を文字で表示) |
+| [components/AutomateResults.js](../components/AutomateResults.js) | automateの実行結果画面の本体。日付/月での絞込検索、すべて/成功のみ/失敗のみフィルタ、全件数・成功数・失敗数のカード表示、月別/日別の成功・失敗を左右に並べた棒グラフ(recharts、積み上げではなくグループ化。バー内に「成功」「失敗」の文字ラベル表示)、一覧テーブル(ID/日時/結果、1ページ50件でクライアント側ページング。失敗時は`allpass`がfalseの行に対し、aisearch/input_candidated/isclose/input_projects/lastpassのうちfalseの項目名を文字で表示)。ページ送りは`Pagination`は使わず、「結果」列見出し右端の◁▷ボタンで行う |
 
 ## lib/(外部サービス接続)
 

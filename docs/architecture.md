@@ -48,9 +48,11 @@ Power Automateからのデータを `projects` テーブルで保持する。`pr
 
 認証情報は `admins`(管理者アカウント)・`sessions`(ログインセッション)テーブルで管理する。
 
+Power Automateフローの主要な操作(AI分析/候補登録/募集停止登録/案件登録)の成否は `results` テーブルに記録され、`/automate-results` 画面で確認できる。
+
 ## Next.js / Vercel
 
-ソースはGitHubで管理し、mainブランチへのマージを契機にVercelが自動デプロイする。管理者はブラウザからHTTPSでアクセスし、案件の検索・閲覧・応募管理・統計グラフ(`/stats`)を利用する。
+ソースはGitHubで管理し、mainブランチへのマージを契機にVercelが自動デプロイする。管理者はブラウザからHTTPSでアクセスし、案件の検索・閲覧・応募管理・統計グラフ(`/stats`)・automateの実行結果確認(`/automate-results`)を利用する。
 
 ## 関連ドキュメント
 

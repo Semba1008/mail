@@ -12,6 +12,7 @@ import {
 import { buildProjectsCsvBlob, filterProjectsByPeriod } from "./projectStats";
 
 // 月またぎを取りこぼさないよう、タブを開いている間はこの間隔で再チェックする
+//現在は、30分おき
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 // 「自動書き出し設定」が有効な場合、前月分のCSVがまだ書き出されていなければ

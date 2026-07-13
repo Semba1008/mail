@@ -60,7 +60,7 @@ export default function Home() {
     const timer = setTimeout(() => setIsLoaded(true), 150);
     return () => clearTimeout(timer);
   }, [selectedProject]);
-
+  
   useEffect(() => {
     setCurrentPage(1);
   }, [
@@ -116,7 +116,7 @@ export default function Home() {
     }
   };
 
-  // 🕒 検索履歴用のStateと保存関数（内部的な保存枠は余裕を持って20件に広げています）
+  // 🕒 検索履歴用のStateと保存関数（内部的な保存枠は20件）
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [history, setHistory] = useState(() => {
     if (typeof window !== "undefined") {
@@ -609,6 +609,22 @@ export default function Home() {
                 }}
               >
                 📊 グラフ
+              </button>
+              <button
+                onClick={() => router.push("/automate-results")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#4a5568",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  padding: "0 25px",
+                  height: "100%",
+                  borderBottom: "3px solid transparent",
+                  boxSizing: "border-box",
+                }}
+              >
+                🤖 automateの実行結果
               </button>
             </div>
           </div>

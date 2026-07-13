@@ -17,6 +17,12 @@
   - PDF/Excel(グラフ集計)、CSV(Supabase `projects` テーブルの案件明細)への書き出し
   - 対応ブラウザ(Chrome/Edge等)では書き出し時に保存先を選択可能(File System Access API)
   - CSV自動書き出し(任意機能): 保存先フォルダをあらかじめ設定しておくと、月が変わった際に前月分の案件データを自動でCSV保存し、成功を通知(ブラウザを開いている間のみ動作)
+- **automateの実行結果(`/automate-results`)**
+  - Power Automateフローの主要な操作(AI分析/人材紹介登録/募集停止登録/案件情報登録)の成功・失敗をSupabaseの`results`テーブルから一覧表示
+  - 日付・月による絞り込み検索、すべて/成功のみ/失敗のみフィルタ
+  - 全件数・成功数・失敗数のカード表示
+  - 月別/日別の成功・失敗積み上げ棒グラフ
+  - 失敗行は、どの操作(AiSearch/候補登録/募集停止登録/案件登録)でNGだったかを文字で表示
 - **認証**
   - メールアドレス+パスワードによるログイン、初回パスワード設定・パスワードリセット
   - Cookieセッション+管理者判定(Supabaseの`sessions`/`admins`テーブル)
@@ -76,6 +82,7 @@ Supabase側には以下のテーブルが必要です。
 - `candidates`: 他社からの人材紹介メールの情報(詳細は[database.md](database.md)参照)
 - `sessions`: ログインセッション管理
 - `admins`: 管理者ユーザーの一覧
+- `results`: Power Automateフローの実行結果(詳細は[database.md](database.md)参照。`service_role`へのSELECT権限付与が必要)
 
 ### 3. 開発サーバーの起動
 
@@ -112,6 +119,7 @@ utils/         フォーマット・集計・保存処理などのユーティ�
 |---|---|
 | `/` | 案件一覧・検索・応募管理 |
 | `/stats` | 案件情報グラフ(地域/年/月絞り込み、PDF/Excel/CSV書き出し) |
+| `/automate-results` | automateの実行結果(日付/月検索、成功・失敗件数、月別/日別グラフ) |
 | `/login` | ログイン |
 | `/setup-password` | 初回パスワード設定 |
 | `/reset-password` | パスワードリセット |

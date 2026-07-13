@@ -196,6 +196,25 @@ sequenceDiagram
   end
 ```
 
+## automateの実行結果取得
+
+```mermaid
+sequenceDiagram
+  participant U as ブラウザ
+  participant P as Next.jsページ(/automate-results)
+  participant A as API(/api/automate-results)
+  participant DB as Supabase(results)
+
+  U->>P: ページアクセス
+  P->>A: GET /api/me(セッション確認)
+  A-->>P: 認証OK(未ログインなら/loginへリダイレクト)
+  P->>A: GET /api/automate-results?page=n(page=0,1,2...)
+  A->>DB: SELECT results ORDER BY created_at DESC
+  DB-->>A: 実行結果データ
+  A-->>P: JSON応答(1,000件単位)
+  P-->>U: 一覧表示(日付/月検索、成功・失敗件数、月別/日別の棒グラフ)
+```
+
 ## 関連ドキュメント
 
 - 図解付きの詳細: [設計書.docx](設計書.docx) 3章「詳細設計」

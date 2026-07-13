@@ -323,18 +323,20 @@ Cookie: token=<セッショントークン>
 {
   "data": [
     {
-      "id": "xxxx",
+      "id": 84,
       "created_at": "2026-07-10T09:03:11.000Z",
-      "AiSearch": true,
+      "aisearch": true,
       "input_candidated": false,
-      "isClose": true,
+      "isclose": true,
       "input_projects": true,
-      "allPass": true,
-      "lastPass": true
+      "allpass": true,
+      "lastpass": true
     }
   ]
 }
 ```
+
+⚠️ 列名はSupabaseの管理画面上は`AiSearch`等キャメルケースで表示されるが、PostgREST経由のレスポンスは実際には**すべて小文字**になる(詳細は[database.md](database.md)参照)。
 
 ### Response(エラー)
 

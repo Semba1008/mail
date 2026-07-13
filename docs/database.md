@@ -67,14 +67,16 @@ Power Automateの主要な操作(メール取込フロー)の成功・失敗を�
 
 | Column | Type | Description |
 |--------|------|-------------|
-| id | text | PK |
+| id | bigint | PK(連番) |
 | created_at | timestamptz | 実行日時(既定値`now()`) |
-| AiSearch | boolean | AI分析(Groq API呼び出し)の成否。既定値`false` |
+| aisearch | boolean | AI分析(Groq API呼び出し)の成否。既定値`false` |
 | input_candidated | boolean | 人材紹介テーブル(candidates)への登録処理の成否。既定値`false` |
-| isClose | boolean | 募集停止テーブル(projectsのisClosed更新)への登録処理の成否。既定値`false` |
+| isclose | boolean | 募集停止テーブル(projectsのisClosed更新)への登録処理の成否。既定値`false` |
 | input_projects | boolean | メイン情報を保持したテーブル(projects)への登録処理の成否。既定値`false` |
-| allPass | boolean | すべての操作が成功した場合のみ`true`。この画面の成功/失敗判定に使用 |
-| lastPass | boolean | 最後の操作まで到達したことを示すフラグ。既定値`false` |
+| allpass | boolean | すべての操作が成功した場合のみ`true`。この画面の成功/失敗判定に使用 |
+| lastpass | boolean | 最後の操作まで到達したことを示すフラグ。既定値`false` |
+
+⚠️ カラム名はSupabaseの管理画面上では`AiSearch`/`isClose`/`allPass`/`lastPass`のように表示されるが、実際にPostgREST(supabase-js)経由で取得すると**すべて小文字**(`aisearch`/`isclose`/`allpass`/`lastpass`)で返ってくる。アプリ側でキャメルケースのまま参照すると常に`undefined`(=失敗扱い)になるバグが発生したため、[components/AutomateResults.js](../components/AutomateResults.js)は小文字キーで参照している。
 
 ⚠️ このテーブルは`service_role`にSELECT権限が付与されていない状態で作成されており、`/api/automate-results`が`permission denied for table results`で500になる事象が発生した。`GRANT SELECT ON public.results TO service_role;`をSupabase側で実行して解消済み。同様の新規テーブル追加時は権限付与を忘れないよう注意。
 

@@ -161,9 +161,11 @@ export default function AutomateResults({ results }) {
   };
 
   const chartData = useMemo(
-    () => aggregateByPeriod(searchedRows, chartGranularity),
-    [searchedRows, chartGranularity]
+    () => aggregateByPeriod(filteredRows, chartGranularity),
+    [filteredRows, chartGranularity]
   );
+  const showSuccessBar = filter !== "failure";
+  const showFailureBar = filter !== "success";
   const chartWidth = Math.max(600, chartData.length * (chartGranularity === "day" ? 60 : 120));
 
   return (
@@ -330,53 +332,61 @@ export default function AutomateResults({ results }) {
                           paddingTop: 8,
                         }}
                       >
-                        <span>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 10,
-                              height: 10,
-                              backgroundColor: "#38a169",
-                              marginRight: 5,
-                              borderRadius: 2,
-                            }}
-                          />
-                          成功
-                        </span>
-                        <span>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 10,
-                              height: 10,
-                              backgroundColor: "#e53e3e",
-                              marginRight: 5,
-                              borderRadius: 2,
-                            }}
-                          />
-                          失敗
-                        </span>
+                        {showSuccessBar && (
+                          <span>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 10,
+                                height: 10,
+                                backgroundColor: "#38a169",
+                                marginRight: 5,
+                                borderRadius: 2,
+                              }}
+                            />
+                            成功
+                          </span>
+                        )}
+                        {showFailureBar && (
+                          <span>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 10,
+                                height: 10,
+                                backgroundColor: "#e53e3e",
+                                marginRight: 5,
+                                borderRadius: 2,
+                              }}
+                            />
+                            失敗
+                          </span>
+                        )}
                       </div>
                     )}
                   />
-                  <Bar dataKey="成功" fill="#38a169" radius={[4, 4, 0, 0]} barSize ={60}>
-                    <LabelList
-                      dataKey="成功"
-                      position="insideBottom"
-                      formatter={() => "成功"}
-                      fill="#fff"
-                      fontSize={11}
-                    />
-                  </Bar>
-                  <Bar dataKey="失敗" fill="#e53e3e" radius={[4, 4, 0, 0]} barSize ={60}>
-                    <LabelList
-                      dataKey="失敗"
-                      position="insideBottom"
-                      formatter={() => "失敗"}
-                      fill="#fff"
-                      fontSize={11}
-                    />
-                  </Bar>
+                  {showSuccessBar && (
+                    <Bar dataKey="成功" fill="#38a169" radius={[4, 4, 0, 0]} barSize ={60}>
+                      <LabelList
+                        dataKey="成功"
+                        position="insideBottom"
+                        formatter={() => "成功"}
+                        fill="#fff"
+                        fontSize={11}
+                      />
+                    </Bar>
+                  )}
+                  {showFailureBar && (
+                    <Bar dataKey="失敗" fill="#e53e3e" radius={[4, 4, 0, 0]} barSize ={60}>
+                      <LabelList
+                        dataKey="失敗"
+                        position="insideBottom"
+                        formatter={() => "失敗"}
+                        fill="#fff"
+                        fontSize={11}
+                      />
+                    </Bar>
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -463,9 +473,7 @@ export default function AutomateResults({ results }) {
                     <span style={{ color: "#38a169", fontWeight: "bold" }}>成功</span>
                   ) : (
                     <span style={{ color: "#e53e3e", fontWeight: "bold" }}>
-                      {STEP_COLUMNS.filter((col) => !row[col.key])
-                        .map((col) => col.label)
-                        .join("・") || "詳細不明"}
+                      {(STEP_COLUMNS.find((col) => row[col.key] === false)?.label) || "詳細不明"}
                       {" "}で失敗
                     </span>
                   )}

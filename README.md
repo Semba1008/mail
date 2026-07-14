@@ -58,13 +58,38 @@
 
 ## セットアップ
 
-### 1. 依存関係のインストール
+### 必要な環境
+
+- [Node.js](https://nodejs.org/) 18.18以降(推奨: 20系以降のLTS)
+- npm(Node.jsに同梱。`package-lock.json`を使用するため npm を推奨)
+- [Git](https://git-scm.com/)
+- [Supabase](https://supabase.com/)のプロジェクト(無料枠で可。Postgres + Storageを使用)
+
+### 1. リポジトリの取得と依存関係のインストール
 
 ```bash
+git clone <このリポジトリのURL>
+cd mailApp
 npm install
 ```
 
-### 2. 環境変数の設定
+### 2. Supabaseプロジェクトの準備
+
+1. Supabaseで新規プロジェクトを作成する
+2. 以下のテーブルを作成する(項目定義・型は[docs/database.md](docs/database.md)を参照)
+   - `projects` / `attachments`: 案件データと添付ファイル情報
+   - `candidates`: 他社からの人材紹介メールの情報
+   - `admins`: 管理者ユーザーの一覧(後述の手順3で使用)
+   - `sessions`: ログインセッション管理
+   - `results`: Power Automateフローの実行結果
+3. 添付ファイル用にStorageバケット「FILES」を作成する(公開URLでアクセスできるようにする)
+4. 各テーブルについて、Next.jsのAPI Routesが使う`service_role`キーからSELECT/INSERT/UPDATE/DELETEできる権限があることを確認する。テーブルによっては作成直後`service_role`にSELECT権限が付与されていないことがあり、その場合はSQL Editorで以下のようなGRANT文を実行する(テーブル名は必要に応じて読み替え)。
+   ```sql
+   GRANT SELECT, INSERT, UPDATE, DELETE ON public.<テーブル名> TO service_role;
+   ```
+5. プロジェクト設定の「API」から、Project URL・`anon`キー・`service_role`キーを控えておく(次の手順3で使用)
+
+### 3. 環境変数の設定
 
 プロジェクトルートに `.env` を作成し、以下を設定してください。
 
@@ -77,21 +102,25 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`: クライアント側のSupabaseアクセスに使用([lib/supabase.js](lib/supabase.js))
 - `SUPABASE_SERVICE_ROLE_KEY`: サーバー側API(`pages/api/*`)からのSupabaseアクセスに使用([lib/supabaseAdmin.js](lib/supabaseAdmin.js))
 
-Supabase側には以下のテーブルが必要です。
+### 4. 初回管理者アカウントの作成
 
-- `projects` / `attachments`: 案件データと添付ファイル情報
-- `candidates`: 他社からの人材紹介メールの情報(詳細は[database.md](database.md)参照)
-- `sessions`: ログインセッション管理
-- `admins`: 管理者ユーザーの一覧
-- `results`: Power Automateフローの実行結果(詳細は[database.md](database.md)参照。`service_role`へのSELECT権限付与が必要)
+本アプリには管理者を新規登録する画面・APIが無いため、Supabaseの管理画面(Table Editor)から`admins`テーブルへ直接1行INSERTする。
 
-### 3. 開発サーバーの起動
+| Column | 値 |
+|---|---|
+| user_email | ログインに使うメールアドレス |
+| password_hash | 空(NULLのまま) |
+| salt | 空(NULLのまま) |
+
+`password_hash`/`salt`が未設定の場合、そのメールアドレスでログインを試みると自動的に「初回ログイン」と判定され、`/setup-password`画面でパスワードを設定できるようになる。
+
+### 5. 開発サーバーの起動
 
 ```bash
 npm run dev
 ```
 
-`http://localhost:3000` にアクセスします(ポートが使用中の場合は自動的に別ポートが割り当てられます)。
+`http://localhost:3000` にアクセスします(ポートが使用中の場合は自動的に別ポートが割り当てられます)。手順4で登録したメールアドレスでログインし、初回パスワード設定を行ってください。
 
 ## スクリプト
 

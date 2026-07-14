@@ -64,6 +64,32 @@ function formatPeriodLabel(period, granularity) {
   return `${Number(m)}/${Number(d)}`;
 }
 
+// 失敗行の原因(最初にfalseになった項目)を返す。原因が特定できない場合はnull
+function getFailureStep(row) {
+  return STEP_COLUMNS.find((col) => row[col.key] === false) || null;
+}
+
+function aggregateByFailureType(rows) {
+  const counts = new Map(STEP_COLUMNS.map((c) => [c.key, 0]));
+  let unknown = 0;
+
+  rows.forEach((row) => {
+    if (row.allpass) return;
+    const step = getFailureStep(row);
+    if (step) {
+      counts.set(step.key, counts.get(step.key) + 1);
+    } else {
+      unknown += 1;
+    }
+  });
+
+  const data = STEP_COLUMNS.map((c) => ({ key: c.key, label: c.label, count: counts.get(c.key) }));
+  if (unknown > 0) {
+    data.push({ key: "unknown", label: "詳細不明", count: unknown });
+  }
+  return data.filter((d) => d.count > 0).sort((a, b) => b.count - a.count);
+}
+
 function aggregateByPeriod(rows, granularity) {
   const map = new Map();
 
@@ -108,6 +134,7 @@ function StatCard({ label, value, color }) {
 
 export default function AutomateResults({ results }) {
   const [filter, setFilter] = useState("all");
+  const [failureTypeFilter, setFailureTypeFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [chartGranularity, setChartGranularity] = useState("month");
@@ -129,19 +156,37 @@ export default function AutomateResults({ results }) {
     });
   }, [rows, dateFilter, monthFilter]);
 
-  // 検索条件 + 成功/失敗の絞り込みを反映した集合(テーブル表示に使う)
+  // 検索条件 + 成功/失敗 + 失敗種類の絞り込みを反映した集合(テーブル表示に使う)
   const filteredRows = useMemo(() => {
-    if (filter === "success") return searchedRows.filter((r) => r.allpass);
-    if (filter === "failure") return searchedRows.filter((r) => !r.allpass);
-    return searchedRows;
-  }, [searchedRows, filter]);
+    let list = searchedRows;
+    if (filter === "success") list = list.filter((r) => r.allpass);
+    if (filter === "failure") list = list.filter((r) => !r.allpass);
+    if (failureTypeFilter !== "all") {
+      list = list.filter(
+        (r) => !r.allpass && (getFailureStep(r)?.key || "unknown") === failureTypeFilter
+      );
+    }
+    return list;
+  }, [searchedRows, filter, failureTypeFilter]);
 
   const successCount = searchedRows.filter((r) => r.allpass).length;
   const failureCount = searchedRows.length - successCount;
 
+  const failureTypeData = useMemo(
+    () => aggregateByFailureType(searchedRows),
+    [searchedRows]
+  );
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, dateFilter, monthFilter]);
+  }, [filter, failureTypeFilter, dateFilter, monthFilter]);
+
+  const handleFailureTypeChange = (value) => {
+    setFailureTypeFilter(value);
+    if (value !== "all") {
+      setFilter("failure");
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
@@ -213,7 +258,10 @@ export default function AutomateResults({ results }) {
           {FILTERS.map((f) => (
             <button
               key={f.id}
-              onClick={() => setFilter(f.id)}
+              onClick={() => {
+                setFilter(f.id);
+                if (f.id !== "failure") setFailureTypeFilter("all");
+              }}
               style={{
                 padding: "8px 16px",
                 borderRadius: 6,
@@ -228,6 +276,25 @@ export default function AutomateResults({ results }) {
               {f.label}
             </button>
           ))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label style={{ color: "#718096", fontSize: "0.8rem", fontWeight: "bold" }}>
+            失敗の種類
+          </label>
+          <select
+            value={failureTypeFilter}
+            onChange={(e) => handleFailureTypeChange(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="all">すべて</option>
+            {STEP_COLUMNS.map((col) => (
+              <option key={col.key} value={col.key}>
+                {col.label}
+              </option>
+            ))}
+            <option value="unknown">詳細不明</option>
+          </select>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -390,6 +457,103 @@ export default function AutomateResults({ results }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        )}
+
+        {chartData.length > 0 && (
+          <div style={{ overflowX: "auto", marginTop: 12 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, backgroundColor: "transparent", borderBottom: "1px solid #e2e8f0" }}>
+                    期間
+                  </th>
+                  {showSuccessBar && (
+                    <th
+                      style={{
+                        ...thStyle,
+                        backgroundColor: "transparent",
+                        borderBottom: "1px solid #e2e8f0",
+                        color: "#38a169",
+                        textAlign: "right",
+                      }}
+                    >
+                      成功
+                    </th>
+                  )}
+                  {showFailureBar && (
+                    <th
+                      style={{
+                        ...thStyle,
+                        backgroundColor: "transparent",
+                        borderBottom: "1px solid #e2e8f0",
+                        color: "#e53e3e",
+                        textAlign: "right",
+                      }}
+                    >
+                      失敗
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {chartData.map((entry) => (
+                  <tr key={entry.period} style={{ borderTop: "1px solid #f1f5f9" }}>
+                    <td style={tdStyle}>{entry.label}</td>
+                    {showSuccessBar && (
+                      <td style={{ ...tdStyle, textAlign: "right", color: "#38a169", fontWeight: "bold" }}>
+                        {entry.成功}
+                      </td>
+                    )}
+                    {showFailureBar && (
+                      <td style={{ ...tdStyle, textAlign: "right", color: "#e53e3e", fontWeight: "bold" }}>
+                        {entry.失敗}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "16px 16px 8px", marginBottom: 24 }}>
+        <div style={{ color: "#4a5568", fontWeight: "bold", fontSize: "0.9rem", marginBottom: 8 }}>
+          失敗の種類別件数
+        </div>
+
+        {failureTypeData.length === 0 ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "#a0aec0" }}>
+            データがありません
+          </div>
+        ) : (
+          <div style={{ height: Math.max(80, failureTypeData.length * 40) }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={failureTypeData}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#edf2f7" />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "#718096" }} />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  width={110}
+                  tick={{ fontSize: 12, fill: "#4a5568" }}
+                />
+                <Tooltip />
+                <Bar dataKey="count" fill="#e53e3e" radius={[0, 4, 4, 0]} barSize={22}>
+                  <LabelList
+                    dataKey="count"
+                    position="right"
+                    fill="#4a5568"
+                    fontSize={12}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>

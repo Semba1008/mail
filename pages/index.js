@@ -1124,6 +1124,8 @@ export default function Home() {
                         return "インフラ";
                       case "embedded":
                         return "組み込み";
+                      case "other":
+                        return "その他";
                       default:
                         return category;
                     }

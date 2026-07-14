@@ -4,6 +4,7 @@ export const sideCategories = [
   { id: "dev", label: "開発" },
   { id: "infra", label: "インフラ" },
   { id: "embedded", label: "組み込み" },
+  { id: "other", label: "その他" },
 ];
 // タブの定義
 export const tabs = [

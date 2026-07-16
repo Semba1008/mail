@@ -239,7 +239,7 @@ export default function ProjectStats({ projects }) {
           cursorY += 6;
         });
       } else {
-        pdf.text("月 / 開発 / インフラ / 組み込み / その他 / 合計", 10, cursorY);
+        pdf.text("月 / 業務系 / インフラ / 組み込み / その他 / 合計", 10, cursorY);
         cursorY += 7;
         barData.forEach((entry) => {
           pdf.text(
@@ -304,7 +304,7 @@ export default function ProjectStats({ projects }) {
       } else {
         sheet.getRow(3).values = [
           "月",
-          "開発",
+          "業務系",
           "インフラ",
           "組み込み",
           "その他",
@@ -631,21 +631,21 @@ export default function ProjectStats({ projects }) {
         }}
       >
         <div style={{ width: "100%", height: 320 }}>
-          <ResponsiveContainer>
-            {activeChart === "pie" ? (
-              pieTotal === 0 ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    color: "#a0aec0",
-                  }}
-                >
-                  該当期間のデータがありません
-                </div>
-              ) : (
+          {activeChart === "pie" && pieTotal === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "#a0aec0",
+              }}
+            >
+              該当期間のデータがありません
+            </div>
+          ) : (
+            <ResponsiveContainer>
+              {activeChart === "pie" ? (
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -668,30 +668,30 @@ export default function ProjectStats({ projects }) {
                   <Tooltip />
                   <Legend />
                 </PieChart>
-              )
-            ) : (
-              <BarChart data={barData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" tickFormatter={(m) => `${m}月`} />
-                <YAxis
-                  allowDecimals={false}
-                  width={50}
-                  label={{ value: "件数", angle: -90, position: "insideLeft" }}
-                />
-                <Tooltip labelFormatter={(m) => `${m}月`} />
-                <Legend />
-                {CHART_CATEGORY_ORDER.map((category) => (
-                  <Bar
-                    key={category}
-                    dataKey={category}
-                    name={CHART_CATEGORY_LABELS[category]}
-                    stackId="category"
-                    fill={CHART_CATEGORY_COLORS[category]}
+              ) : (
+                <BarChart data={barData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tickFormatter={(m) => `${m}月`} />
+                  <YAxis
+                    allowDecimals={false}
+                    width={50}
+                    label={{ value: "件数", angle: -90, position: "insideLeft" }}
                   />
-                ))}
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+                  <Tooltip labelFormatter={(m) => `${m}月`} />
+                  <Legend />
+                  {CHART_CATEGORY_ORDER.map((category) => (
+                    <Bar
+                      key={category}
+                      dataKey={category}
+                      name={CHART_CATEGORY_LABELS[category]}
+                      stackId="category"
+                      fill={CHART_CATEGORY_COLORS[category]}
+                    />
+                  ))}
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          )}
         </div>
 
         <table
@@ -707,7 +707,7 @@ export default function ProjectStats({ projects }) {
             <tr>
               {(activeChart === "pie"
                 ? ["カテゴリ", "件数"]
-                : ["月", "開発", "インフラ", "組み込み", "その他", "合計"]
+                : ["月", "業務系", "インフラ", "組み込み", "その他", "合計"]
               ).map((head) => (
                 <th
                   key={head}

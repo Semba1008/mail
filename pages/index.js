@@ -1119,7 +1119,7 @@ export default function Home() {
                   .map((category) => {
                     switch (category) {
                       case "dev":
-                        return "開発";
+                        return "業務系";
                       case "infra":
                         return "インフラ";
                       case "embedded":

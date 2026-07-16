@@ -39,7 +39,7 @@ Cookie: token=<セッショントークン>
       "projects_id": "AAMkAGI2...",
       "id": 123,
       "title": "【急募】ECサイトリニューアル開発エンジニア",
-      "category": "開発",
+      "category": "業務系",
       "location": "東京都渋谷区(渋谷駅)",
       "price": "60万円〜75万円",
       "period": "6ヶ月〜",

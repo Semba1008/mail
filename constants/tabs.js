@@ -1,7 +1,7 @@
 // サイドバーのカテゴリ
 export const sideCategories = [
   { id: "all", label: "すべて" },
-  { id: "dev", label: "開発" },
+  { id: "dev", label: "業務系" },
   { id: "infra", label: "インフラ" },
   { id: "embedded", label: "組み込み" },
   { id: "other", label: "その他" },

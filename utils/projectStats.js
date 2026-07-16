@@ -6,7 +6,7 @@ import { normalize } from "./format";
 // 挙動を変えないようこちらは独立した関数として定義する（未分類は "その他" 扱い）。
 export const getChartCategory = (project) => {
   const text = `${project.category}`.toLowerCase();
-  if (/開発/i.test(text)) return "dev";
+  if (/業務系/i.test(text)) return "dev";
   if (/インフラ/i.test(text)) return "infra";
   if (/組み込み/i.test(text)) return "embedded";
   return "other";
@@ -15,7 +15,7 @@ export const getChartCategory = (project) => {
 export const CHART_CATEGORY_ORDER = ["dev", "infra", "embedded", "other"];
 
 export const CHART_CATEGORY_LABELS = {
-  dev: "開発",
+  dev: "業務系",
   infra: "インフラ",
   embedded: "組み込み",
   other: "その他",

@@ -9,7 +9,7 @@
 | projects_id | text | PK。Power Automateがメールのメッセージ ID をそのまま採番して仮登録する |
 | id | bigint | 画面表示・お気に入り等の識別に使う連番 |
 | title | text | 案件名(メール件名) |
-| category | text | カテゴリ判定元の文字列(開発/インフラ/組み込みのいずれかを含む) |
+| category | text | カテゴリ判定元の文字列(業務系/インフラ/組み込みのいずれかを含む) |
 | location | text | 勤務地(地域絞り込みにも使用) |
 | price | text | 単価(自由記述) |
 | period | text | 期間(自由記述) |
@@ -42,7 +42,7 @@
 | skills | text | スキル(AI抽出) |
 | period | text | 期間(AI抽出) |
 | end_date | text | 募集期限(AI抽出) |
-| category | text[] | 分類(開発/インフラ/組み込みのうち該当するもの、複数可) |
+| category | text[] | 分類(業務系/インフラ/組み込みのうち該当するもの、複数可) |
 | isClosed | boolean | 常にfalse |
 | is_human_resource | boolean | 常にtrue |
 

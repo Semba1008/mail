@@ -178,27 +178,40 @@ export default function Home() {
     }
   };
 
-  // APIから全データをループで取得
+  // APIから全データを取得(1ページ目で総件数を把握し、残りのページは並列取得)
   const fetchData = useCallback(async () => {
     setLoading(true);
 
     try {
+      const firstRes = await fetch(`/api/mails?page=0`);
+      const firstPayload = await firstRes.json();
+
       let allProjects = [];
-      let page = 0;
-      let isFetching = true;
 
-      while (isFetching) {
-        const res = await fetch(`/api/mails?page=${page}`);
-        const payload = await res.json();
+      if (!firstPayload.error && firstPayload.data) {
+        allProjects = [...firstPayload.data];
 
-        if (payload.error || !payload.data) break;
+        const pageSize = firstPayload.pageSize || 1000;
+        const total = firstPayload.total ?? firstPayload.data.length;
+        const totalPages = Math.ceil(total / pageSize);
 
-        allProjects = [...allProjects, ...payload.data];
+        if (totalPages > 1) {
+          const remainingPages = Array.from(
+            { length: totalPages - 1 },
+            (_, i) => i + 1,
+          );
 
-        if (payload.data.length < 1000) {
-          isFetching = false;
-        } else {
-          page = page + 1;
+          const results = await Promise.all(
+            remainingPages.map((page) =>
+              fetch(`/api/mails?page=${page}`).then((res) => res.json()),
+            ),
+          );
+
+          results.forEach((payload) => {
+            if (!payload.error && payload.data) {
+              allProjects = [...allProjects, ...payload.data];
+            }
+          });
         }
       }
 

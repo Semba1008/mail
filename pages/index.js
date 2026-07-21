@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import parse from "html-react-parser";
 
@@ -10,9 +10,20 @@ import { skillCategories } from "../constants/skills";
 import { sideCategories, tabs } from "../constants/tabs";
 import { PAGE_SIZE } from "../constants/config";
 import { storage } from "../utils/storage";
-import { normalize, formatContent } from "../utils/format";
+import { formatContent } from "../utils/format";
 import { getProjectCategories } from "../utils/project";
 import { useAutoExportWatcher } from "../utils/useAutoExportWatcher";
+
+// 案件が「まもなく募集終了(登録から335〜365日)」かどうかを判定する
+function computeIsExpiringSoon(createdAt) {
+  if (!createdAt) return false;
+  const expireDate = new Date(createdAt);
+  expireDate.setDate(expireDate.getDate() + 365);
+  const warningDate = new Date(expireDate);
+  warningDate.setDate(warningDate.getDate() - 30);
+  const now = new Date();
+  return now >= warningDate && now <= expireDate;
+}
 
 // メインコンポーネント
 export default function Home() {
@@ -38,10 +49,16 @@ export default function Home() {
   const [selectedRegion, setSelectedRegion] = useState("すべて");
   const [isLoaded, setIsLoaded] = useState(false);
   const [autoExportNotice, setAutoExportNotice] = useState("");
+  const [total, setTotal] = useState(0);
+  const [favoriteIds, setFavoriteIds] = useState([]);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [exportProjects, setExportProjects] = useState([]);
+  const fetchRequestIdRef = useRef(0);
 
   // 統計グラフ画面(/stats)で設定した「前月分CSVの自動書き出し」を、
-  // このメイン画面を開いたときにも判定・実行する(取りこぼしを減らすため)
-  useAutoExportWatcher(projects, {
+  // このメイン画面を開いたときにも判定・実行する(取りこぼしを減らすため)。
+  // 一覧は現在ページ(24件)しか保持していないため、書き出し対象(前月分)は別途軽量取得する。
+  useAutoExportWatcher(exportProjects, {
     onResult: (result) => {
       if (result.type === "needs-reauth") return;
       setAutoExportNotice(result.message);
@@ -60,17 +77,12 @@ export default function Home() {
     const timer = setTimeout(() => setIsLoaded(true), 150);
     return () => clearTimeout(timer);
   }, [selectedProject]);
-  
+
+  // キーワード検索はサーバーへの問い合わせが必要なので、入力が止まってから検索する
   useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchQuery,
-    selectedPrefs,
-    selectedSkills,
-    favFilters,
-    viewMode,
-    selectedRegion,
-  ]);
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -87,6 +99,10 @@ export default function Home() {
         const data = await res.json();
         setUser(data);
         setAuthChecked(true);
+        setFavoriteIds(storage.get("favorites"));
+        setHistoryIds(storage.get("history"));
+        setReadIds(storage.get("readProjects"));
+        setAppliedIds(storage.get("appliedIds"));
       } catch {
         window.location.href = "/login";
       }
@@ -95,9 +111,28 @@ export default function Home() {
     checkLogin();
   }, []);
 
+  // 前月分CSV自動書き出し用のデータ(content等は含めない軽量取得)。
+  // 月をまたいだ場合に取りこぼさないよう、30分おきに再取得する。
   useEffect(() => {
     if (!authChecked || !user) return;
-    fetchData();
+
+    const loadExportProjects = async () => {
+      const now = new Date();
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      try {
+        const res = await fetch(
+          `/api/mails?mode=export&year=${prev.getFullYear()}&month=${prev.getMonth() + 1}`,
+        );
+        const payload = await res.json();
+        if (!payload.error && payload.data) setExportProjects(payload.data);
+      } catch (error) {
+        console.error("自動書き出し用データ取得エラー:", error);
+      }
+    };
+
+    loadExportProjects();
+    const interval = setInterval(loadExportProjects, 30 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [authChecked, user]);
 
   const router = useRouter();
@@ -178,51 +213,78 @@ export default function Home() {
     }
   };
 
-  // APIから全データをループで取得
-  const fetchData = useCallback(async () => {
+  // 現在の検索・絞込・ページ条件でAPIから1ページ分だけ取得する
+  const fetchPage = useCallback(async () => {
+    const requestId = ++fetchRequestIdRef.current;
     setLoading(true);
 
     try {
-      let allProjects = [];
-      let page = 0;
-      let isFetching = true;
-
-      while (isFetching) {
-        const res = await fetch(`/api/mails?page=${page}`);
-        const payload = await res.json();
-
-        if (payload.error || !payload.data) break;
-
-        allProjects = [...allProjects, ...payload.data];
-
-        if (payload.data.length < 1000) {
-          isFetching = false;
-        } else {
-          page = page + 1;
-        }
+      const params = new URLSearchParams();
+      params.set("mode", "list");
+      params.set("page", String(currentPage));
+      params.set("pageSize", String(PAGE_SIZE));
+      if (debouncedQuery) params.set("q", debouncedQuery);
+      if (viewMode === "all" && selectedRegion !== "すべて") {
+        params.set("region", selectedRegion);
+      }
+      selectedPrefs.forEach((pref) => params.append("prefs", pref));
+      selectedSkills.forEach((skill) => params.append("skills", skill));
+      favFilters.forEach((cat) => params.append("categories", cat));
+      if (isRemoteOnly) params.set("remote", "1");
+      params.set("hideClosed", hideClosed ? "1" : "0");
+      params.set("viewMode", viewMode);
+      appliedIds.forEach((id) => params.append("appliedIds", String(id)));
+      if (viewMode === "favorites") {
+        favoriteIds.forEach((id) => params.append("ids", String(id)));
+      } else if (viewMode === "history") {
+        historyIds.forEach((id) => params.append("ids", String(id)));
       }
 
-      const favorites = storage.get("favorites");
-      const historyData = storage.get("history");
-      const read = storage.get("readProjects");
-      const applied = storage.get("appliedIds");
+      const res = await fetch(`/api/mails?${params.toString()}`);
+      const payload = await res.json();
 
-      setHistoryIds(historyData);
-      setReadIds(read);
-      setAppliedIds(applied);
+      if (requestId !== fetchRequestIdRef.current) return; // 古いレスポンスは無視
+
+      if (payload.error || !payload.data) {
+        setProjects([]);
+        setTotal(0);
+        return;
+      }
 
       setProjects(
-        allProjects.map((item) => ({
+        payload.data.map((item) => ({
           ...item,
-          favorite: favorites.includes(item.id),
+          favorite: favoriteIds.includes(item.id),
+          isExpiringSoon: computeIsExpiringSoon(item.created_at),
         })),
       );
+      setTotal(payload.total || 0);
     } catch (error) {
-      console.error("データ取得エラー:", error);
+      if (requestId === fetchRequestIdRef.current) {
+        console.error("データ取得エラー:", error);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestIdRef.current) setLoading(false);
     }
-  }, []);
+  }, [
+    currentPage,
+    debouncedQuery,
+    viewMode,
+    selectedRegion,
+    selectedPrefs,
+    selectedSkills,
+    favFilters,
+    isRemoteOnly,
+    hideClosed,
+    appliedIds,
+    favoriteIds,
+    historyIds,
+  ]);
+
+  useEffect(() => {
+    if (!authChecked || !user) return;
+    fetchPage();
+  }, [authChecked, user, fetchPage]);
 
   // 駅名サジェスト取得
   const fetchStations = useCallback(
@@ -259,116 +321,10 @@ export default function Home() {
     [selectedPrefs],
   );
 
-  // フィルタリング処理
-  // フィルタリング処理
-  const filteredProjects = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-
-    const currentRegionData = regionalPrefectures.find(
-      (r) => r.region === selectedRegion,
-    );
-
-    const allowedPrefsNormalized = currentRegionData
-      ? currentRegionData.prefs.map(normalize)
-      : [];
-
-    return projects
-      .map((project) => {
-        // --- 期限フラグの付与 ---
-        if (!project.created_at) return { ...project, isExpiringSoon: false };
-        const projectDate = new Date(project.created_at);
-        const expireDate = new Date(projectDate);
-        expireDate.setDate(expireDate.getDate() + 365);
-        const warningDate = new Date(expireDate);
-        warningDate.setDate(warningDate.getDate() - 30);
-        const now = new Date();
-        return {
-          ...project,
-          isExpiringSoon: now >= warningDate && now <= expireDate,
-        };
-      })
-      .filter((project) => {
-        // --- ここからがフィルタリングの全条件 ---
-
-        // 1. 1年以上経過したものを非表示
-        if (project.created_at) {
-          const expireDate = new Date(project.created_at);
-          expireDate.setDate(expireDate.getDate() + 365);
-          if (new Date() > expireDate) return false;
-        }
-
-        // 2. クローズ案件の除外
-        if (hideClosed && project.isClosed) return false;
-
-        // 3. モード別のフィルタリング
-        const isApplied = appliedIds.includes(project.id);
-        if (viewMode === "applied") return isApplied;
-        if (isApplied) return false;
-        if (viewMode === "favorites") return project.favorite;
-        if (viewMode === "history") return historyIds.includes(project.id);
-
-        // 4. カテゴリフィルタ
-        if (favFilters.length) {
-          const categories = getProjectCategories(project);
-          if (!favFilters.every((filter) => categories.includes(filter)))
-            return false;
-        }
-
-        // 5. 検索・場所・スキル・リモート条件
-        const pureContent = project.content || "";
-        const searchableText =
-          `${project.title || ""}${project.skills || ""}${pureContent}${project.location || ""}`.toLowerCase();
-        const projectLocation = (project.location || "").trim();
-        const projectPrefNormalized = normalize(projectLocation);
-
-        if (viewMode === "all" && selectedRegion !== "すべて") {
-          const matchesRegion = allowedPrefsNormalized.some((pref) =>
-            projectPrefNormalized.startsWith(pref),
-          );
-          if (!matchesRegion) return false;
-        }
-
-        if (selectedPrefs.length) {
-          const matchesPref = selectedPrefs.some((pref) =>
-            projectPrefNormalized.startsWith(normalize(pref)),
-          );
-          if (!matchesPref) return false;
-        }
-
-        const matchesSkill =
-          !selectedSkills.length ||
-          selectedSkills.every((skill) =>
-            searchableText.includes(skill.toLowerCase()),
-          );
-        const matchesRemote =
-          !isRemoteOnly ||
-          [project.location, project.title, pureContent].some((text) =>
-            text?.includes("リモート"),
-          );
-
-        // 最後の条件を返す
-        return searchableText.includes(query) && matchesSkill && matchesRemote;
-      });
-  }, [
-    appliedIds,
-    favFilters,
-    hideClosed,
-    historyIds,
-    isRemoteOnly,
-    projects,
-    searchQuery,
-    selectedPrefs,
-    selectedSkills,
-    viewMode,
-    selectedRegion,
-  ]);
-
-  const totalPages = Math.ceil(filteredProjects.length / PAGE_SIZE);
-
-  const currentItems = filteredProjects.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  );
+  // 検索・絞込・ページングはサーバー側(/api/mails?mode=list)で行うため、
+  // ここでは取得済みの現在ページ分をそのまま表示する
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentItems = projects;
 
   // ページネーション範囲計算
   const paginationRange = useMemo(() => {
@@ -421,13 +377,16 @@ export default function Home() {
 
   const toggleFavorite = (event, id) => {
     event.stopPropagation();
-    const updated = projects.map((p) =>
-      p.id === id ? { ...p, favorite: !p.favorite } : p,
-    );
-    setProjects(updated);
-    storage.set(
-      "favorites",
-      updated.filter((p) => p.favorite).map((p) => p.id),
+    setFavoriteIds((prev) => {
+      const updated = prev.includes(id)
+        ? prev.filter((favId) => favId !== id)
+        : [...prev, id];
+      storage.set("favorites", updated);
+      return updated;
+    });
+    // 再取得を待たずに星マークだけ即時反映する
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, favorite: !p.favorite } : p)),
     );
   };
 
@@ -479,12 +438,11 @@ export default function Home() {
         alert("削除に失敗しました。サーバーエラーの可能性があります。");
         return;
       }
-      setProjects((prev) =>
-        prev.filter((p) => p.projects_id !== deleteTargetId),
-      );
       setSelectedProject((prev) =>
         prev?.projects_id === deleteTargetId ? null : prev,
       );
+      // ページ内の件数・総件数がズレないよう、現在の条件で取り直す
+      await fetchPage();
     } catch (error) {
       console.error("削除リクエスト中にエラーが発生しました:", error);
     } finally {
@@ -1018,7 +976,7 @@ export default function Home() {
               fontWeight: "bold",
             }}
           >
-            該当案件数: {filteredProjects.length} 件
+            該当案件数: {total} 件
           </div>
           {loading ? (
             <div style={styles.spinner} />

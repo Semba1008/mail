@@ -264,20 +264,13 @@ export default async function handler(req, res) {
         return handleExportQuery(req, res);
       }
 
-      // ④ データ取得(レガシー: /stats 等が使う全件ループ用。挙動は変更しない)
+      // ④ データ取得(/stats が使う全件ループ用。グラフ集計に使う列だけの軽量取得)
       const page = Number(req.query?.page || 0);
       const pageSize = 1000;
 
       const { data, error } = await supabaseAdmin
         .from("projects")
-        .select(`
-          *,
-          attachments (
-            id,
-            file_name,
-            file_url
-          )
-        `)
+        .select("id,title,category,location,price,period,end_date,skills,created_at")
         .order("created_at", { ascending: false })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 

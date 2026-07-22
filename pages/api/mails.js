@@ -78,10 +78,6 @@ async function handleListQuery(req, res) {
       { count: "exact" }
     );
 
-  // 登録から365日以上経過したものは非表示
-  const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-  query = query.gte("created_at", cutoff);
-
   if (hideClosed) {
     query = query.or("isClosed.eq.false,isClosed.is.null");
   }

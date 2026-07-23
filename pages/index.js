@@ -178,58 +178,66 @@ export default function Home() {
     }
   };
 
-  // APIから全データを取得(1ページ目で総件数を把握し、残りのページは並列取得)
+  // APIから全データを取得
+  // 1ページ目が届いた時点で即座に画面表示し、残りのページは裏で並列取得して
+  // 後から追加する(全ページ完了まで待たせない=体感速度の改善)
   const fetchData = useCallback(async () => {
     setLoading(true);
+
+    const favorites = storage.get("favorites");
+    const historyData = storage.get("history");
+    const read = storage.get("readProjects");
+    const applied = storage.get("appliedIds");
+
+    setHistoryIds(historyData);
+    setReadIds(read);
+    setAppliedIds(applied);
+
+    const withFavorite = (items) =>
+      items.map((item) => ({
+        ...item,
+        favorite: favorites.includes(item.id),
+      }));
 
     try {
       const firstRes = await fetch(`/api/mails?page=0`);
       const firstPayload = await firstRes.json();
 
-      let allProjects = [];
-
-      if (!firstPayload.error && firstPayload.data) {
-        allProjects = [...firstPayload.data];
-
-        const pageSize = firstPayload.pageSize || 1000;
-        const total = firstPayload.total ?? firstPayload.data.length;
-        const totalPages = Math.ceil(total / pageSize);
-
-        if (totalPages > 1) {
-          const remainingPages = Array.from(
-            { length: totalPages - 1 },
-            (_, i) => i + 1,
-          );
-
-          const results = await Promise.all(
-            remainingPages.map((page) =>
-              fetch(`/api/mails?page=${page}`).then((res) => res.json()),
-            ),
-          );
-
-          results.forEach((payload) => {
-            if (!payload.error && payload.data) {
-              allProjects = [...allProjects, ...payload.data];
-            }
-          });
-        }
+      if (firstPayload.error || !firstPayload.data) {
+        setProjects([]);
+        return;
       }
 
-      const favorites = storage.get("favorites");
-      const historyData = storage.get("history");
-      const read = storage.get("readProjects");
-      const applied = storage.get("appliedIds");
+      setProjects(withFavorite(firstPayload.data));
+      setLoading(false);
 
-      setHistoryIds(historyData);
-      setReadIds(read);
-      setAppliedIds(applied);
+      const pageSize = firstPayload.pageSize || 1000;
+      const total = firstPayload.total ?? firstPayload.data.length;
+      const totalPages = Math.ceil(total / pageSize);
 
-      setProjects(
-        allProjects.map((item) => ({
-          ...item,
-          favorite: favorites.includes(item.id),
-        })),
-      );
+      if (totalPages > 1) {
+        const remainingPages = Array.from(
+          { length: totalPages - 1 },
+          (_, i) => i + 1,
+        );
+
+        const results = await Promise.all(
+          remainingPages.map((page) =>
+            fetch(`/api/mails?page=${page}`).then((res) => res.json()),
+          ),
+        );
+
+        const additionalProjects = [];
+        results.forEach((payload) => {
+          if (!payload.error && payload.data) {
+            additionalProjects.push(...payload.data);
+          }
+        });
+
+        if (additionalProjects.length) {
+          setProjects((prev) => [...prev, ...withFavorite(additionalProjects)]);
+        }
+      }
     } catch (error) {
       console.error("データ取得エラー:", error);
     } finally {

@@ -4,6 +4,44 @@ function getToken(req) {
   return req.cookies?.token;
 }
 
+// 案件一覧は総件数分のページを並列で叩くため、同一トークンに対する
+// セッション/管理者確認のDB往復が短時間に何度も発生する。
+// 結果を数十秒キャッシュして往復回数を減らす(next startの常駐プロセス前提)。
+const AUTH_CACHE_TTL_MS = 30_000;
+const authCache = new Map();
+
+async function verifyAdmin(token) {
+  const cached = authCache.get(token);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.userEmail;
+  }
+
+  const { data: session, error: sessionError } = await supabaseAdmin
+    .from("sessions")
+    .select("user_email")
+    .eq("token", token)
+    .single();
+
+  if (sessionError || !session) {
+    authCache.set(token, { userEmail: null, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+    return null;
+  }
+
+  const { data: admin, error: adminError } = await supabaseAdmin
+    .from("admins")
+    .select("id")
+    .eq("user_email", session.user_email)
+    .single();
+
+  if (adminError || !admin) {
+    authCache.set(token, { userEmail: null, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+    return null;
+  }
+
+  authCache.set(token, { userEmail: session.user_email, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+  return session.user_email;
+}
+
 export default async function handler(req, res) {
   try {
     const token = getToken(req);
@@ -13,31 +51,12 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // セッション確認
+    // セッション確認 + 管理者チェック(キャッシュ利用)
     // =========================
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("sessions")
-      .select("user_email")
-      .eq("token", token)
-      .single();
+    const userEmail = await verifyAdmin(token);
 
-    if (sessionError || !session) {
-      return res.status(401).json({ error: "無効なセッション" });
-    }
-
-    const userEmail = session.user_email;
-
-    // =========================
-    // 管理者チェック
-    // =========================
-    const { data: admin, error: adminError } = await supabaseAdmin
-      .from("admins")
-      .select("id")
-      .eq("user_email", userEmail)
-      .single();
-
-    if (adminError || !admin) {
-      return res.status(403).json({ error: "権限なし" });
+    if (!userEmail) {
+      return res.status(401).json({ error: "無効なセッション、または権限がありません" });
     }
 
     // =========================
@@ -91,17 +110,21 @@ export default async function handler(req, res) {
       // ④ データ取得
       const page = Number(req.query?.page || 0);
       const pageSize = 1000;
-
+      // 総件数(count: "exact")はテーブル全体を数えるコストがかかるため、
+      // ページ数の算出に使う1ページ目のリクエストでのみ計算する
       const { data, error, count } = await supabaseAdmin
         .from("projects")
-        .select(`
+        .select(
+          `
           *,
           attachments (
             id,
             file_name,
             file_url
           )
-        `, { count: "exact" })
+        `,
+          page === 0 ? { count: "exact" } : undefined,
+        )
         .order("created_at", { ascending: false })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 

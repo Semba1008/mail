@@ -1,6 +1,9 @@
 import { regionalPrefectures } from "../constants/regions";
 import { normalize } from "./format";
 
+// 統計ページ(/stats)およびCSV自動書き出し機能で使う集計・絞り込みロジック一式。
+// components/ProjectStats.js からグラフ用データ生成のために呼び出される。
+
 // グラフ集計専用のカテゴリ判定・集計ロジック
 // 既存の utils/project.js の getProjectCategories はサイドバー絞り込みで使用中のため、
 // 挙動を変えないようこちらは独立した関数として定義する（未分類は "その他" 扱い）。
@@ -89,6 +92,8 @@ export const getMonthlyCategoryBreakdown = (projects, year, month) => {
   }));
 };
 
+// CSVのフィールド値をエスケープする。カンマ・ダブルクォート・改行を含む場合のみ
+// ダブルクォートで囲み、内部のダブルクォートは二重にする(RFC4180準拠)
 const escapeCsvField = (value) => {
   const str = String(value ?? "");
   return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
@@ -127,6 +132,7 @@ export const buildProjectsCsvBlob = (projectsList) => {
     .map((row) => row.map(escapeCsvField).join(","))
     .join("\r\n");
 
+  // 先頭にBOM(U+FEFF)を付与し、ExcelでUTF-8として文字化けせずに開けるようにする
   return new Blob([`${String.fromCharCode(0xfeff)}${csvContent}`], {
     type: "text/csv;charset=utf-8;",
   });

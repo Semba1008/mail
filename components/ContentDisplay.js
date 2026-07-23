@@ -1,5 +1,8 @@
 import DOMPurify from "dompurify";
 
+// メール本文(content)を表示用に整形するコンポーネント
+// Base64エンコードされたHTMLメール・生のHTMLメール・プレーンテキストの
+// いずれで来ても適切に判定してレンダリングする
 export const ContentDisplay = ({ content }) => {
   if (!content) return null;
 
@@ -24,7 +27,7 @@ export const ContentDisplay = ({ content }) => {
   const isHtml = /<[a-z][\s\S]*>/i.test(processedContent);
 
   if (isHtml) {
-    // 安全のためにHTMLをサニタイズして表示
+    // 安全のためにHTMLをサニタイズして表示(XSS対策としてDOMPurifyを通す)
     return (
       <div
         dangerouslySetInnerHTML={{
@@ -34,6 +37,6 @@ export const ContentDisplay = ({ content }) => {
     );
   }
 
-  // 4. それ以外はただのテキストとして表示
+  // 4. それ以外はただのテキストとして表示(改行を保持するためpre-wrap指定)
   return <div style={{ whiteSpace: "pre-wrap" }}>{processedContent}</div>;
 };

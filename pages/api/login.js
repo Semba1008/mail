@@ -1,3 +1,5 @@
+// 管理者ログインAPI (/api/login)
+// email/passwordを受け取り、pbkdf2ハッシュ照合に成功したら新規セッションを発行しCookieにセットする
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import crypto from "crypto";
 
@@ -11,7 +13,7 @@ export default async function handler(req, res) {
 
   const { email, password } = req.body;
 
-  
+
 
   try {
     // ユーザー取得
@@ -28,7 +30,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 初回ログイン判定
+    // 初回ログイン判定(パスワード未設定=初回ログインとしてセットアップ画面に誘導するため)
     if (!data.password_hash || !data.salt) {
       return res.status(401).json({
     status: "error",
@@ -36,7 +38,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // password hash生成
+    // password hash生成(登録時と同じsalt・パラメータで再計算し照合する)
     const inputHash = crypto
       .pbkdf2Sync(password, data.salt, 100000, 64, "sha512")
       .toString("hex");
@@ -45,11 +47,13 @@ export default async function handler(req, res) {
     let isMatch = false;
 
     try {
+      // タイミング攻撃を避けるため timingSafeEqual で比較する
       isMatch = crypto.timingSafeEqual(
         Buffer.from(inputHash, "hex"),
         Buffer.from(data.password_hash, "hex")
       );
     } catch (e) {
+      // バッファ長不一致などで比較自体が失敗した場合もパスワード不一致として扱う
       return res.status(401).json({
         status: "error",
         error: "INVALID_PASSWORD",
@@ -63,7 +67,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 既存セッション削除
+    // 既存セッション削除(同一Cookieに紐づく古いセッションを使い回さないようにする)
     const oldToken = req.cookies?.token;
 
     if (oldToken) {
@@ -87,7 +91,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // cookie設定
+    // cookie設定(HttpOnly + SameSite=Laxで保護し、本番環境のみSecure属性を付与)
     const isProd = process.env.NODE_ENV === "production";
 
     res.setHeader(
@@ -103,6 +107,7 @@ export default async function handler(req, res) {
       email: data.user_email,
     });
   } catch (err) {
+    // 想定外のエラーはログに出しつつ500を返す
     console.error("LOGIN ERROR:", err);
 
     return res.status(500).json({

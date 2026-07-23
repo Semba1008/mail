@@ -20,12 +20,15 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 // 30分おきに再チェックすることで、日付が変わって月が切り替わった瞬間も
 // (タブを閉じていない限り)取りこぼさないようにする。
 export function useAutoExportWatcher(projects, { onResult } = {}) {
+  // projects/onResultはrefで保持し、useEffect内のsetIntervalが依存配列の再生成なしに
+  // 常に最新の値を参照できるようにする(effectは初回マウント時の1回のみ実行したいため)
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
 
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
 
+  // 外部(手動実行ボタン等)からチェック処理を呼び出せるようにrefに関数を格納しておく
   const checkRef = useRef(async () => {});
 
   useEffect(() => {
@@ -34,15 +37,18 @@ export function useAutoExportWatcher(projects, { onResult } = {}) {
     let cancelled = false;
 
     const check = async () => {
+      // 設定が無効ならチェック自体をスキップ
       if (cancelled || !getAutoExportEnabled()) return;
 
       const handle = await loadDirectoryHandle().catch(() => null);
       if (!handle || cancelled) return;
 
+      // 前月分が既に書き出し済みなら何もしない(同月内での重複書き出し防止)
       const { year, month } = getPreviousMonth();
       const key = monthKey(year, month);
       if (getLastExportedMonth() === key) return;
 
+      // フォルダへの書き込み権限が失効している場合はユーザーに再認可を促す
       const granted = await queryDirectoryPermission(handle).catch(() => false);
       if (cancelled) return;
       if (!granted) {

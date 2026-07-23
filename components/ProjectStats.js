@@ -39,6 +39,13 @@ import {
 } from "../utils/autoExport";
 import { useAutoExportWatcher } from "../utils/useAutoExportWatcher";
 
+// 案件情報グラフ画面 (/stats) の本体コンポーネント。
+// 円グラフ(月別内訳)・棒グラフ(年間推移)の切り替え表示、
+// 地域/年/月による絞り込み、PDF・Excel・CSVへの書き出し、
+// および自動書き出し(前月分CSVを毎月フォルダへ保存)の設定UIを提供する。
+// 集計ロジック自体は utils/projectStats.js に切り出してあり、本ファイルは
+// その結果を状態管理・グラフ描画・書き出し処理に繋ぐ役割を担う。
+
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const groupLabelStyle = {
@@ -70,41 +77,57 @@ const selectInnerStyle = {
 export default function ProjectStats({ projects }) {
   const now = new Date();
 
+  // どちらのグラフを表示中か("pie"=月別内訳の円グラフ, "bar"=年間推移の棒グラフ)
   const [activeChart, setActiveChart] = useState("pie");
   const [selectedRegion, setSelectedRegion] = useState("すべて");
+  // 円グラフの対象月。初期値は当月
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  // PDF/Excel/CSV書き出し中はボタンを無効化するためのフラグ
   const [isExporting, setIsExporting] = useState(false);
 
+  // 自動書き出し(前月分CSVをフォルダへ自動保存する)機能に関する状態。
+  // File System Access API 非対応ブラウザでは autoSupported が false のままとなり、
+  // 設定UI自体を表示しない。
   const [autoSupported, setAutoSupported] = useState(false);
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [autoFolderName, setAutoFolderName] = useState("");
+  // フォルダへの書き込み権限が失効した場合に再許可ボタンを表示するためのフラグ
   const [autoNeedsReauth, setAutoNeedsReauth] = useState(false);
   const [autoNotice, setAutoNotice] = useState("");
 
+  // 地域絞り込み後の案件一覧。年/月の選択肢や各グラフのデータ元になる
   const regionFilteredProjects = useMemo(
     () => filterProjectsByRegion(projects, selectedRegion),
     [projects, selectedRegion],
   );
 
+  // 地域絞り込み後のデータに実際に存在する年の一覧(降順)。
+  // 年セレクトボックスの選択肢として使う
   const availableYears = useMemo(
     () => getAvailableYears(regionFilteredProjects),
     [regionFilteredProjects],
   );
 
+  // 選択中の年。当年のデータがあれば当年、なければ最新の年をデフォルトにする
   const [selectedYear, setSelectedYear] = useState(
     availableYears.includes(now.getFullYear())
       ? now.getFullYear()
       : availableYears[0],
   );
 
+  // 地域を切り替えて選択中の年のデータが無くなった場合、
+  // 存在する年(先頭=最新)に選択を合わせ直す
   useEffect(() => {
     if (!availableYears.includes(selectedYear)) {
       setSelectedYear(availableYears[0]);
     }
   }, [availableYears, selectedYear]);
 
+  // PDF/Excel書き出し時にグラフ領域をhtml2canvasで画像化するための参照
   const chartRef = useRef(null);
 
+  // useAutoExportWatcher からの結果通知を受け取り、画面表示用の状態に反映する。
+  // 権限失効時は再許可ボタンを出し、成功時はブラウザ通知(許可済みの場合)も出す
   const handleAutoExportResult = (result) => {
     if (result.type === "needs-reauth") {
       setAutoNeedsReauth(true);
@@ -121,10 +144,14 @@ export default function ProjectStats({ projects }) {
     }
   };
 
+  // 前月分CSVの自動書き出しを定期的にチェックするフック(実処理はフック側に委譲)
   const { runCheckNow } = useAutoExportWatcher(projects, {
     onResult: handleAutoExportResult,
   });
 
+  // 初回マウント時、ブラウザが自動書き出し機能(File System Access API)に
+  // 対応しているか判定し、対応していれば設定UIを表示。
+  // 以前選択した保存先フォルダのハンドルが残っていれば、その名前を復元表示する
   useEffect(() => {
     if (!isAutoExportSupported()) return;
     setAutoSupported(true);
@@ -136,6 +163,8 @@ export default function ProjectStats({ projects }) {
     })();
   }, []);
 
+  // 保存先フォルダをユーザーに選択させ、ハンドルをIndexedDB等に永続化する。
+  // ユーザーがピッカーをキャンセルした場合(AbortError)はエラー扱いにしない
   const handleChooseAutoFolder = async () => {
     try {
       const handle = await window.showDirectoryPicker({ mode: "readwrite" });
@@ -150,6 +179,7 @@ export default function ProjectStats({ projects }) {
     }
   };
 
+  // 保存先フォルダの設定を解除し、自動書き出しも合わせて無効化する
   const handleClearAutoFolder = async () => {
     await clearDirectoryHandle().catch(() => {});
     setAutoFolderName("");
@@ -159,6 +189,9 @@ export default function ProjectStats({ projects }) {
     setAutoNotice("保存先フォルダの設定を解除しました。");
   };
 
+  // 「前月分を自動保存する」チェックボックスの切り替え。
+  // 有効化時、通知許可が未設定(default)ならブラウザ通知の許可を求め、
+  // 直後に一度チェックを走らせて取りこぼしを防ぐ
   const handleToggleAutoEnabled = async (checked) => {
     setAutoEnabled(checked);
     setAutoExportEnabled(checked);
@@ -168,6 +201,8 @@ export default function ProjectStats({ projects }) {
     if (checked) await runCheckNow();
   };
 
+  // フォルダへの書き込み権限が失効した際、再度許可を求めてから
+  // 自動書き出しチェックを再実行する
   const handleReauthorizeFolder = async () => {
     const handle = await loadDirectoryHandle().catch(() => null);
     if (!handle) return;
@@ -178,6 +213,7 @@ export default function ProjectStats({ projects }) {
     }
   };
 
+  // 円グラフ用データ: 選択年月におけるカテゴリ別件数(dev/infra/embedded/other)
   const pieData = useMemo(
     () =>
       getMonthlyCategoryBreakdown(
@@ -187,13 +223,17 @@ export default function ProjectStats({ projects }) {
       ),
     [regionFilteredProjects, selectedYear, selectedMonth],
   );
+  // 棒グラフ用データ: 選択年における月別×カテゴリ別件数(スタック棒グラフの元データ)
   const barData = useMemo(
     () => getYearlyMonthlyCounts(regionFilteredProjects, selectedYear),
     [regionFilteredProjects, selectedYear],
   );
 
+  // 円グラフの合計件数。0件なら「該当期間のデータがありません」表示に切り替える判定に使う
   const pieTotal = pieData.reduce((sum, entry) => sum + entry.value, 0);
 
+  // CSV書き出し対象の生案件データ。円グラフ表示中は年月一致、
+  // 棒グラフ表示中は年のみ一致するものを抽出する(表示中のグラフに対応する期間分を書き出す)
   const csvProjects = useMemo(
     () =>
       activeChart === "pie"
@@ -202,12 +242,16 @@ export default function ProjectStats({ projects }) {
     [regionFilteredProjects, activeChart, selectedYear, selectedMonth],
   );
 
+  // 書き出しファイル名に使うラベル。地域を絞り込んでいる場合はサフィックスを付与する
   const regionSuffix = selectedRegion !== "すべて" ? `_${selectedRegion}` : "";
   const fileLabel =
     (activeChart === "pie"
       ? `${selectedYear}年${selectedMonth}月_月別内訳`
       : `${selectedYear}年_年間推移`) + regionSuffix;
 
+  // グラフ領域をPDFに書き出す。html2canvasでグラフ部分を画像化し、
+  // その画像とデータの内訳(テキスト)をjsPDFで1枚のPDFにまとめる。
+  // ライブラリが重いため動的importにして初期バンドルサイズを抑えている
   const handleExportPdf = async () => {
     if (!chartRef.current) return;
     setIsExporting(true);
@@ -229,6 +273,7 @@ export default function ProjectStats({ projects }) {
       pdf.text(`案件統計 - ${fileLabel}`, 10, 15);
       pdf.addImage(imgData, "PNG", 10, 20, imgWidth, imgHeight);
 
+      // グラフ画像の下に、表示中のグラフ種別に応じた内訳テキストを追記する
       let cursorY = 20 + imgHeight + 10;
       pdf.setFontSize(11);
       if (activeChart === "pie") {
@@ -265,6 +310,7 @@ export default function ProjectStats({ projects }) {
     }
   };
 
+  // 現在の絞り込み条件(地域・年・月)に該当する生の案件データをCSVで書き出す
   const handleExportCsv = async () => {
     setIsExporting(true);
     const blob = buildProjectsCsvBlob(csvProjects);
@@ -278,6 +324,9 @@ export default function ProjectStats({ projects }) {
     }
   };
 
+  // グラフ領域をExcelに書き出す。PDF同様html2canvasで画像化し、
+  // シート上部にタイトル、中段にデータ表、右側(棒グラフは列を広めに確保)に
+  // グラフ画像を貼り付ける。ExcelJSも重いため動的importにしている
   const handleExportExcel = async () => {
     if (!chartRef.current) return;
     setIsExporting(true);
@@ -326,6 +375,8 @@ export default function ProjectStats({ projects }) {
         base64: imgBase64,
         extension: "png",
       });
+      // 棒グラフは表の列数が多い(月/業務系/インフラ/組み込み/その他/合計)ため、
+      // 表と重ならないよう画像の貼り付け開始列を後ろにずらす
       const anchorCol = activeChart === "pie" ? 4 : 8;
       sheet.addImage(imageId, {
         tl: { col: anchorCol, row: 2 },
@@ -382,6 +433,7 @@ export default function ProjectStats({ projects }) {
         案件情報グラフ
       </h2>
 
+      {/* グラフ切り替えタブ(円グラフ/棒グラフ) */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {[
           { id: "pie", label: "月別内訳（円グラフ）" },
@@ -459,6 +511,7 @@ export default function ProjectStats({ projects }) {
             </div>
           </div>
 
+          {/* 月セレクトは円グラフ表示中のみ必要なため、棒グラフ表示中は非表示にする */}
           {activeChart === "pie" && (
             <div>
               <div style={groupLabelStyle}>月</div>
@@ -535,6 +588,7 @@ export default function ProjectStats({ projects }) {
             </div>
           </div>
 
+          {/* 自動書き出し設定UI。ブラウザがFile System Access APIに対応している場合のみ表示 */}
           {autoSupported && (
             <div>
               <div style={groupLabelStyle}>自動書き出し設定(毎月・前月分CSV)</div>
@@ -631,6 +685,8 @@ export default function ProjectStats({ projects }) {
         }}
       >
         <div style={{ width: "100%", height: 320 }}>
+          {/* 円グラフ表示時、選択年月に該当するデータが1件も無い場合は
+              空のグラフを描画せず、代わりにメッセージを表示する */}
           {activeChart === "pie" && pieTotal === 0 ? (
             <div
               style={{
@@ -646,6 +702,8 @@ export default function ProjectStats({ projects }) {
           ) : (
             <ResponsiveContainer>
               {activeChart === "pie" ? (
+                // 月別内訳の円グラフ。カテゴリごとに色分けし、件数0のセグメントは
+                // ラベルを空文字にして表示を省く
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -669,6 +727,9 @@ export default function ProjectStats({ projects }) {
                   <Legend />
                 </PieChart>
               ) : (
+                // 年間推移の積み上げ棒グラフ。CHART_CATEGORY_ORDER の順に
+                // 同じstackId("category")を持つBarを並べることで、
+                // 月ごとにカテゴリ別件数を積み上げ表示する
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" tickFormatter={(m) => `${m}月`} />
@@ -694,6 +755,8 @@ export default function ProjectStats({ projects }) {
           )}
         </div>
 
+        {/* グラフと同じデータをテーブルでも表示し、数値を読み取りやすくする
+            (見出し・行ともグラフ種別によって内容を切り替える) */}
         <table
           style={{
             width: "100%",

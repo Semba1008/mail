@@ -1,4 +1,5 @@
-// 地域ごとの都道府県リスト
+// 案件検索フォームの勤務地(都道府県)絞り込みで使う、地域ごとの都道府県リスト
+// pages/index.js の検索フォームから参照される
 export const regionalPrefectures = [
   {
     region: "東日本",

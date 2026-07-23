@@ -1,11 +1,18 @@
+// 案件データ(projects)のCRUD・検索・エクスポート・統計取得を担うAPIルート。
+// GET は req.query.mode によって以下の3系統に分岐する:
+//   - mode=list   : 一覧画面(pages/index.js)向けのサーバーサイド検索・ページング取得
+//   - mode=export : CSV自動書き出し(utils/autoExport.js)向けの期間指定軽量取得
+//   - mode指定なし: /stats が使う全件ループ取得用の軽量取得(グラフ集計に必要な列のみ)
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { normalize } from "../../utils/format";
 import { regionalPrefectures } from "../../constants/regions";
 
+// Cookieに保存されたセッショントークンを取り出す
 function getToken(req) {
   return req.cookies?.token;
 }
 
+// クエリパラメータが単一値/配列/未指定のいずれでも配列に正規化する
 function toArray(value) {
   return [].concat(value || []).filter(Boolean);
 }
@@ -39,8 +46,12 @@ function orAcrossColumns(value) {
   return `title.ilike.${pattern},skills.ilike.${pattern},content.ilike.${pattern},location.ilike.${pattern}`;
 }
 
+// category列の表記ゆれを吸収するためのキーワードマッピング(カテゴリタブのフィルタ用)
 const CATEGORY_KEYWORDS = { dev: "業務系", infra: "インフラ", embedded: "組み込み" };
 
+// 一覧画面用のメインクエリ処理。検索条件・タブ(全件/応募済み/お気に入り/閲覧履歴)・
+// カテゴリ/地域/スキル/リモート絞り込みを全てSupabaseのクエリビルダに変換してから
+// サーバーサイドでページングして返す(案件数が多いためクライアント全件取得はしない)
 async function handleListQuery(req, res) {
   const page = Math.max(1, Number(req.query?.page) || 1);
   const pageSize = Math.min(Number(req.query?.pageSize) || 24, 100);
@@ -64,6 +75,7 @@ async function handleListQuery(req, res) {
     return res.status(200).json({ data: [], total: 0 });
   }
 
+  // 添付ファイル(attachments)も含めて取得。count: "exact" でページング用の総件数も同時取得する
   let query = supabaseAdmin
     .from("projects")
     .select(
@@ -78,10 +90,14 @@ async function handleListQuery(req, res) {
       { count: "exact" }
     );
 
+  // 「募集終了案件を隠す」設定が有効な場合、isClosed=falseまたはnull(未設定)の案件のみに絞る
   if (hideClosed) {
     query = query.or("isClosed.eq.false,isClosed.is.null");
   }
 
+  // タブによってID絞り込みの向きが変わる:
+  // - 応募済みタブ: appliedIdsに含まれる案件だけを表示
+  // - それ以外: 応募済み案件は一覧から除外しつつ、お気に入り/閲覧履歴タブならさらにidsに限定
   if (viewMode === "applied") {
     query = query.in("id", appliedIds);
   } else {
@@ -93,6 +109,7 @@ async function handleListQuery(req, res) {
     }
   }
 
+  // カテゴリタブでの絞り込み。"other"は既知3カテゴリのいずれにも一致しない(またはnullの)案件を意味する
   for (const cat of categories) {
     if (cat === "other") {
       query = query.or(
@@ -103,6 +120,8 @@ async function handleListQuery(req, res) {
     }
   }
 
+  // 地域選択(regions.jsの都道府県グループ)による絞り込み。個別の都道府県指定(prefs)がある場合は
+  // そちらが優先されるため、regionはviewMode==="all"かつprefs未指定時の大まかな絞り込みとして働く
   if (viewMode === "all" && region && region !== "すべて") {
     const regionPrefs = regionalPrefectures.find((r) => r.region === region)?.prefs || [];
     if (regionPrefs.length > 0) {
@@ -112,24 +131,29 @@ async function handleListQuery(req, res) {
     }
   }
 
+  // 都道府県の個別選択による絞り込み(locationの前方一致)
   if (prefs.length > 0) {
     query = query.or(
       prefs.map((p) => `location.ilike.${startsWithPattern(normalize(p))}`).join(",")
     );
   }
 
+  // スキル選択による絞り込み。スキルごとにOR条件を追加するため、複数選択時はAND(すべてのスキルを含む)条件になる
   for (const skill of skills) {
     query = query.or(orAcrossColumns(skill));
   }
 
+  // リモート案件フィルタ。location/title/contentのいずれかに「リモート」を含む案件に絞る
   if (remote) {
     query = query.or("location.ilike.%リモート%,title.ilike.%リモート%,content.ilike.%リモート%");
   }
 
+  // フリーワード検索。title/skills/content/locationを横断してOR検索する
   if (q) {
     query = query.or(orAcrossColumns(q));
   }
 
+  // 新着順に並べ、ページ番号からoffset/limitを計算してサーバーサイドページングする
   query = query
     .order("created_at", { ascending: false })
     .range((page - 1) * pageSize, (page - 1) * pageSize + pageSize - 1);
@@ -173,6 +197,8 @@ async function handleExportQuery(req, res) {
   return res.status(200).json({ data });
 }
 
+// このAPI全体(list/export/統計取得/DELETE)は管理者専用。まずセッション・管理者権限を確認してから
+// req.methodとmodeクエリでハンドラを振り分ける
 export default async function handler(req, res) {
   try {
     const token = getToken(req);
@@ -219,6 +245,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "IDが無効です" });
       }
 
+      // 案件削除に先立ち、紐づく添付ファイルのURLからストレージ上のパスを逆算して実体ファイルも削除する
+      // (DBの行を消すだけではSupabase Storage上のファイルは残ってしまうため)
       const { data: attachments } = await supabaseAdmin
         .from("attachments")
         .select("file_url")

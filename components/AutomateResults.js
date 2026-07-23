@@ -1,3 +1,6 @@
+// automate(自動化バッチ)の実行結果一覧・統計表示コンポーネント (/automate-results)
+// 各実行行にはパイプラインの各ステップの成否がbool列で記録されており、
+// それを元に成功/失敗件数の集計・期間別推移グラフ・失敗種類別グラフ・一覧テーブルを表示する
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -12,6 +15,8 @@ import {
   YAxis,
 } from "recharts";
 
+// automateパイプラインの実行ステップ(実行順)。row[key]がfalseになっている
+// 最初の列が、そのステップで処理が止まった=失敗原因とみなす
 const STEP_COLUMNS = [
   { key: "aisearch", label: "AI分析" },
   { key: "input_candidated", label: "人材紹介登録" },
@@ -20,14 +25,17 @@ const STEP_COLUMNS = [
   { key: "lastpass", label: "最終処理" },
 ];
 
+// 結果一覧テーブルの1ページあたりの表示件数
 const PAGE_SIZE = 50;
 
+// 結果一覧テーブルの成功/失敗絞り込みボタンの選択肢
 const FILTERS = [
   { id: "all", label: "すべて" },
   { id: "success", label: "成功のみ" },
   { id: "failure", label: "失敗のみ" },
 ];
 
+// created_atを日本語の日時表記(YYYY/MM/DD HH:mm:ss)に変換する(一覧テーブル表示用)
 function formatDateTime(value) {
   if (!value) return "-";
   const date = new Date(value);
@@ -50,11 +58,13 @@ function getJstDateKey(value) {
   return date.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 }
 
+// 成功・失敗推移グラフの集計単位(月ごと/日ごと)の切り替え選択肢
 const GRANULARITIES = [
   { id: "month", label: "月ごと" },
   { id: "day", label: "日ごと" },
 ];
 
+// 集計キー("YYYY-MM"または"YYYY-MM-DD")をグラフ・テーブルの表示用ラベルに変換
 function formatPeriodLabel(period, granularity) {
   if (granularity === "month") {
     const [y, m] = period.split("-");
@@ -69,6 +79,9 @@ function getFailureStep(row) {
   return STEP_COLUMNS.find((col) => row[col.key] === false) || null;
 }
 
+// 失敗行を失敗ステップ(getFailureStepの結果)ごとに集計し、
+// 「失敗の種類別件数」グラフ用のデータを作る。件数0の種類は表示しないため除外し、
+// 件数の多い順に並べ替える
 function aggregateByFailureType(rows) {
   const counts = new Map(STEP_COLUMNS.map((c) => [c.key, 0]));
   let unknown = 0;
@@ -79,6 +92,7 @@ function aggregateByFailureType(rows) {
     if (step) {
       counts.set(step.key, counts.get(step.key) + 1);
     } else {
+      // どのステップ列もfalseになっていない=原因が特定できない失敗として別枠集計
       unknown += 1;
     }
   });
@@ -90,12 +104,15 @@ function aggregateByFailureType(rows) {
   return data.filter((d) => d.count > 0).sort((a, b) => b.count - a.count);
 }
 
+// created_at(JST日付)を月/日単位でグルーピングし、期間ごとの成功・失敗件数を集計する。
+// 「成功・失敗の推移」グラフおよびその下の集計テーブルの元データになる
 function aggregateByPeriod(rows, granularity) {
   const map = new Map();
 
   rows.forEach((row) => {
     const key = getJstDateKey(row.created_at);
     if (!key) return;
+    // 月ごと表示の場合は"YYYY-MM"に切り詰めて同月のデータをまとめる
     const period = granularity === "month" ? key.slice(0, 7) : key;
 
     if (!map.has(period)) {
@@ -109,11 +126,13 @@ function aggregateByPeriod(rows, granularity) {
     }
   });
 
+  // 期間の昇順(古い→新しい)に並べ、グラフ/テーブル表示用のラベルを付与する
   return Array.from(map.values())
     .sort((a, b) => a.period.localeCompare(b.period))
     .map((entry) => ({ ...entry, label: formatPeriodLabel(entry.period, granularity) }));
 }
 
+// 全件数/成功/失敗の件数を表示する小さなカードUI
 function StatCard({ label, value, color }) {
   return (
     <div
@@ -132,14 +151,22 @@ function StatCard({ label, value, color }) {
   );
 }
 
+// automate実行結果一覧ページ本体。呼び出し元(pages/automate-results.js)から
+// 全件取得済みのresults配列を受け取り、絞り込み・集計・ページングはすべてクライアント側で行う
 export default function AutomateResults({ results }) {
+  // 成功/失敗の絞り込み("すべて"/"成功のみ"/"失敗のみ")
   const [filter, setFilter] = useState("all");
+  // 失敗の種類による絞り込み(STEP_COLUMNSのkeyまたは"unknown"/"all")
   const [failureTypeFilter, setFailureTypeFilter] = useState("all");
+  // 日付/月による絞り込み(どちらか片方のみ有効。互いに排他)
   const [dateFilter, setDateFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
+  // 「成功・失敗の推移」グラフの集計単位(月ごと/日ごと)
   const [chartGranularity, setChartGranularity] = useState("month");
+  // 結果一覧テーブルの現在ページ
   const [currentPage, setCurrentPage] = useState(1);
 
+  // 受け取ったresultsを直接使わず、created_atの新しい順にソートしたコピーを保持する
   const rows = useMemo(() => {
     return [...results].sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at)
@@ -169,18 +196,25 @@ export default function AutomateResults({ results }) {
     return list;
   }, [searchedRows, filter, failureTypeFilter]);
 
+  // 統計カード表示用の成功/失敗件数。日付・月の検索条件のみを反映したsearchedRowsから算出する
+  // (成功/失敗フィルタ自体の影響は受けず、常に検索条件内の全体件数を示す)
   const successCount = searchedRows.filter((r) => r.allpass).length;
   const failureCount = searchedRows.length - successCount;
 
+  // 「失敗の種類別件数」グラフ用データ。こちらも検索条件のみを反映したsearchedRowsが元になる
   const failureTypeData = useMemo(
     () => aggregateByFailureType(searchedRows),
     [searchedRows]
   );
 
+  // 絞り込み条件が変わったら表示中のページを1ページ目に戻す
+  // (古いページ番号のまま件数が減ると空ページになってしまうため)
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, failureTypeFilter, dateFilter, monthFilter]);
 
+  // 失敗の種類を選択したら、成功/失敗フィルタも自動的に「失敗のみ」に切り替える
+  // (「すべて」や「成功のみ」のまま失敗種類を選ぶと表示が矛盾するため)
   const handleFailureTypeChange = (value) => {
     setFailureTypeFilter(value);
     if (value !== "all") {
@@ -188,6 +222,7 @@ export default function AutomateResults({ results }) {
     }
   };
 
+  // ページング計算。件数が0でも最低1ページは表示する
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
   const currentItems = filteredRows.slice(
@@ -199,18 +234,24 @@ export default function AutomateResults({ results }) {
     setCurrentPage(pageNumber);
   };
 
+  // 日付/月のいずれかが指定されていれば「検索中」とみなす
   const hasSearch = !!dateFilter || !!monthFilter;
   const clearSearch = () => {
     setDateFilter("");
     setMonthFilter("");
   };
 
+  // 「成功・失敗の推移」グラフのデータは、テーブルと同じfilteredRows(検索+成功/失敗+失敗種類の
+  // 絞り込み済み)を元に集計する。フィルタで絞った内容がそのままグラフにも反映される
   const chartData = useMemo(
     () => aggregateByPeriod(filteredRows, chartGranularity),
     [filteredRows, chartGranularity]
   );
+  // 成功/失敗フィルタに応じて、グラフ・テーブルに表示する系列を切り替える
+  // (例えば「失敗のみ」の時は成功バー・成功列を非表示にする)
   const showSuccessBar = filter !== "failure";
   const showFailureBar = filter !== "success";
+  // 期間の件数が多いほどグラフ幅を広げ、横スクロールで見やすくする
   const chartWidth = Math.max(600, chartData.length * (chartGranularity === "day" ? 60 : 120));
 
   return (
@@ -239,12 +280,14 @@ export default function AutomateResults({ results }) {
         automateの実行結果
       </h2>
 
+      {/* 全件数(または検索中は該当件数)・成功・失敗の件数サマリー */}
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <StatCard label={hasSearch ? "該当件数" : "全件数"} value={searchedRows.length} color="#1a365d" />
         <StatCard label="成功" value={successCount} color="#38a169" />
         <StatCard label="失敗" value={failureCount} color="#e53e3e" />
       </div>
 
+      {/* 絞り込み操作行: 成功/失敗フィルタ・失敗種類セレクト・日付/月検索・検索クリア */}
       <div
         style={{
           display: "flex",
@@ -254,6 +297,7 @@ export default function AutomateResults({ results }) {
           flexWrap: "wrap",
         }}
       >
+        {/* 成功/失敗フィルタボタン。「失敗のみ」以外を選んだ場合は失敗種類の絞り込みも解除する */}
         <div style={{ display: "flex", gap: 8 }}>
           {FILTERS.map((f) => (
             <button
@@ -278,6 +322,7 @@ export default function AutomateResults({ results }) {
           ))}
         </div>
 
+        {/* 失敗の種類による絞り込みセレクト(選択すると成功/失敗フィルタも「失敗のみ」に切り替わる) */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <label style={{ color: "#718096", fontSize: "0.8rem", fontWeight: "bold" }}>
             失敗の種類
@@ -297,6 +342,7 @@ export default function AutomateResults({ results }) {
           </select>
         </div>
 
+        {/* 日付検索。入力すると月検索側はクリアする(日付/月は排他) */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <label style={{ color: "#718096", fontSize: "0.8rem", fontWeight: "bold" }}>
             日付
@@ -312,6 +358,7 @@ export default function AutomateResults({ results }) {
           />
         </div>
 
+        {/* 月検索。入力すると日付検索側はクリアする(日付/月は排他) */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <label style={{ color: "#718096", fontSize: "0.8rem", fontWeight: "bold" }}>
             月
@@ -327,6 +374,7 @@ export default function AutomateResults({ results }) {
           />
         </div>
 
+        {/* 日付/月のいずれかが指定されている時だけ表示する検索クリアボタン */}
         {hasSearch && (
           <button
             onClick={clearSearch}
@@ -346,11 +394,13 @@ export default function AutomateResults({ results }) {
         )}
       </div>
 
+      {/* 「成功・失敗の推移」棒グラフ + 集計テーブル(filteredRowsを月/日単位で集計) */}
       <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "16px 16px 4px", marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
           <div style={{ color: "#4a5568", fontWeight: "bold", fontSize: "0.9rem" }}>
             成功・失敗の推移
           </div>
+          {/* 集計単位(月ごと/日ごと)の切り替えボタン */}
           <div style={{ display: "flex", gap: 8 }}>
             {GRANULARITIES.map((g) => (
               <button
@@ -374,11 +424,13 @@ export default function AutomateResults({ results }) {
           </div>
         </div>
 
+        {/* データが無い場合はグラフ・テーブルの代わりにプレースホルダーを表示 */}
         {chartData.length === 0 ? (
           <div style={{ padding: "40px 0", textAlign: "center", color: "#a0aec0" }}>
             データがありません
           </div>
         ) : (
+          // 期間数に応じてchartWidthを可変にしているため、はみ出す分は横スクロールで見せる
           <div style={{ overflowX: "auto" }}>
             <div style={{ width: chartWidth, height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -387,6 +439,8 @@ export default function AutomateResults({ results }) {
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#718096" }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#718096" }} />
                   <Tooltip />
+                  {/* recharts標準の凡例だと表示/非表示の切り替えが難しいため、
+                      showSuccessBar/showFailureBarに応じた自前の凡例を描画する */}
                   <Legend
                     content={() => (
                       <div
@@ -432,6 +486,7 @@ export default function AutomateResults({ results }) {
                       </div>
                     )}
                   />
+                  {/* 成功/失敗フィルタに合わせて、対応するバー自体を出し分ける */}
                   {showSuccessBar && (
                     <Bar dataKey="成功" fill="#38a169" radius={[4, 4, 0, 0]} barSize ={60}>
                       <LabelList
@@ -460,6 +515,7 @@ export default function AutomateResults({ results }) {
           </div>
         )}
 
+        {/* グラフと同じchartDataを使った、期間別の件数一覧テーブル(グラフの下に併記) */}
         {chartData.length > 0 && (
           <div style={{ overflowX: "auto", marginTop: 12 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
@@ -518,6 +574,7 @@ export default function AutomateResults({ results }) {
         )}
       </div>
 
+      {/* 「失敗の種類別件数」横棒グラフ(searchedRowsを失敗ステップごとに集計したfailureTypeDataを使用) */}
       <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "16px 16px 8px", marginBottom: 24 }}>
         <div style={{ color: "#4a5568", fontWeight: "bold", fontSize: "0.9rem", marginBottom: 8 }}>
           失敗の種類別件数
@@ -558,6 +615,8 @@ export default function AutomateResults({ results }) {
         )}
       </div>
 
+      {/* 実行結果の一覧テーブル(PAGE_SIZE件ずつページング表示)。
+          ページ送りボタンは「結果」列のヘッダー内にまとめて配置している */}
       <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
           <thead>
@@ -574,6 +633,7 @@ export default function AutomateResults({ results }) {
                   }}
                 >
                   <span>結果</span>
+                  {/* 前へ/次へページ送りボタン(先頭・末尾では非活性化) */}
                   <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <button
                       onClick={() => changePage(Math.max(currentPage - 1, 1))}
@@ -636,6 +696,8 @@ export default function AutomateResults({ results }) {
                   {row.allpass ? (
                     <span style={{ color: "#38a169", fontWeight: "bold" }}>成功</span>
                   ) : (
+                    // STEP_COLUMNSを順に見て最初にfalseになっている列を失敗原因として表示する
+                    // (getFailureStepと同じロジックをここでも使用。該当なしは「詳細不明」)
                     <span style={{ color: "#e53e3e", fontWeight: "bold" }}>
                       {(STEP_COLUMNS.find((col) => row[col.key] === false)?.label) || "詳細不明"}
                       {" "}で失敗
@@ -651,6 +713,7 @@ export default function AutomateResults({ results }) {
   );
 }
 
+// テーブル・入力欄で使い回す共通スタイル定義
 const thStyle = {
   textAlign: "left",
   padding: "10px 12px",

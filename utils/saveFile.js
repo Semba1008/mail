@@ -14,6 +14,8 @@ export async function saveFile(blob, suggestedName, { types } = {}) {
     }
   }
 
+  // showSaveFilePicker非対応環境向けフォールバック:
+  // Blobから一時URLを生成し、非表示のaタグをクリックさせることでダウンロードを発火させる
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

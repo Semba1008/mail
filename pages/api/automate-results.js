@@ -1,3 +1,5 @@
+// 自動化ツール(スクレイピング等)の実行結果一覧を取得するAPI (/api/automate-results)
+// セッション確認 → 管理者チェックを経た上で、GETのみ許可しresultsテーブルをページング取得する
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 
 function getToken(req) {
@@ -44,6 +46,7 @@ export default async function handler(req, res) {
     // GET
     // =========================
     if (req.method === "GET") {
+      // 1000件単位のページングで取得(一度に全件返すとレスポンスが肥大化するため)
       const page = Number(req.query?.page || 0);
       const pageSize = 1000;
 
@@ -60,8 +63,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ data });
     }
 
+    // GET以外のメソッドは許可しない
     return res.status(405).json({ error: "Method Not Allowed" });
   } catch (err) {
+    // 想定外のエラーはログに出しつつ500を返す
     console.error(err);
     return res.status(500).json({ error: "SERVER_ERROR" });
   }

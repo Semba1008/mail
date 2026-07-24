@@ -14,7 +14,14 @@ import { formatContent } from "../utils/format";
 import { getProjectCategories } from "../utils/project";
 import { useAutoExportWatcher } from "../utils/useAutoExportWatcher";
 
-// 案件が「まもなく募集終了(登録から335〜365日)」かどうかを判定する
+// 案件一覧メインページ(/)。
+// 検索・絞込・ページングはサーバー側(/api/mails?mode=list)に問い合わせて行い、
+// このコンポーネントは現在ページ分のデータを受け取って表示するだけに留める
+// (以前は全件をクライアント側で保持していたが、読み込み速度改善のためサーバーサイド方式に変更した)。
+
+// 案件が「まもなく募集終了(登録から335〜365日)」かどうかを判定する。
+// あくまで一覧上での注意喚起表示用のフラグであり、一覧に出す/出さないの絞り込みには使わない
+// (絞り込み側の365日カットオフは撤廃済みで、古い案件も検索対象に含まれる)
 function computeIsExpiringSoon(createdAt) {
   if (!createdAt) return false;
   const expireDate = new Date(createdAt);
@@ -27,32 +34,42 @@ function computeIsExpiringSoon(createdAt) {
 
 // メインコンポーネント
 export default function Home() {
-  const [authChecked, setAuthChecked] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPrefs, setSelectedPrefs] = useState([]);
-  const [selectedSkills, setSelectedSkills] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [stationSuggestions, setStationSuggestions] = useState([]);
-  const [isRemoteOnly, setIsRemoteOnly] = useState(false);
-  const [hideClosed, setHideClosed] = useState(true);
-  const [viewMode, setViewMode] = useState("all");
-  const [favFilters, setFavFilters] = useState([]);
+  // --- 認証・画面全体のロード状態 ---
+  const [authChecked, setAuthChecked] = useState(false); // /api/me によるログイン確認が完了したか
+  const [user, setUser] = useState(null); // ログイン中ユーザー情報(未ログインならnull)
+  const [loading, setLoading] = useState(true); // 現在ページの案件データを取得中かどうか(スピナー表示用)
+
+  // --- 案件一覧・詳細表示 ---
+  const [projects, setProjects] = useState([]); // サーバーから取得した「現在ページ分」の案件配列
+  const [selectedProject, setSelectedProject] = useState(null); // 詳細モーダルで開いている案件
+  const [currentPage, setCurrentPage] = useState(1); // 現在のページ番号(サーバーへの問い合わせにも使う)
+  const [total, setTotal] = useState(0); // 現在の検索条件に合致する総件数(ページ数計算に使用)
+
+  // --- 検索・絞込条件 ---
+  const [searchQuery, setSearchQuery] = useState(""); // 検索ボックスの入力値(即時反映)
+  const [debouncedQuery, setDebouncedQuery] = useState(""); // 入力が止まってから実際にAPIへ渡す検索語
+  const [selectedPrefs, setSelectedPrefs] = useState([]); // 絞込中の都道府県一覧
+  const [selectedSkills, setSelectedSkills] = useState([]); // 絞込中のスキル一覧
+  const [showFilters, setShowFilters] = useState(false); // 詳細絞り込みパネルの開閉状態
+  const [stationSuggestions, setStationSuggestions] = useState([]); // 駅名サジェスト候補
+  const [isRemoteOnly, setIsRemoteOnly] = useState(false); // リモート案件のみ表示するか
+  const [hideClosed, setHideClosed] = useState(true); // 募集停止案件を非表示にするか
+  const [viewMode, setViewMode] = useState("all"); // 表示タブ("all" | "favorites" | "history" など)
+  const [favFilters, setFavFilters] = useState([]); // サイドバーで選択中のカテゴリー絞込
+  const [selectedRegion, setSelectedRegion] = useState("すべて"); // 地域タブ(東日本/中日本/西日本など)
+
+  // --- お気に入り・閲覧履歴・応募済み(ローカルストレージと同期するID一覧) ---
+  const [favoriteIds, setFavoriteIds] = useState([]);
   const [historyIds, setHistoryIds] = useState([]);
   const [readIds, setReadIds] = useState([]);
   const [appliedIds, setAppliedIds] = useState([]);
-  const [deleteTargetId, setDeleteTargetId] = useState(null);
-  const [selectedRegion, setSelectedRegion] = useState("すべて");
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [autoExportNotice, setAutoExportNotice] = useState("");
-  const [total, setTotal] = useState(0);
-  const [favoriteIds, setFavoriteIds] = useState([]);
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  const [deleteTargetId, setDeleteTargetId] = useState(null); // 削除確認モーダルの対象案件ID
+  const [isLoaded, setIsLoaded] = useState(false); // 詳細モーダルの表示アニメーション制御用
+  const [autoExportNotice, setAutoExportNotice] = useState(""); // 自動CSV書き出し結果の通知メッセージ
+  // 前月分CSV自動書き出し判定に使う軽量データ(一覧の現在ページ分とは別に取得する)
   const [exportProjects, setExportProjects] = useState([]);
+  // 検索リクエストの競合(古いレスポンスが後から返ってくる)を防ぐためのリクエストID管理
   const fetchRequestIdRef = useRef(0);
 
   // 統計グラフ画面(/stats)で設定した「前月分CSVの自動書き出し」を、
@@ -137,6 +154,7 @@ export default function Home() {
 
   const router = useRouter();
 
+  // ログアウトAPIを呼んでからログイン画面へ遷移する
   const handleLogout = async () => {
     try {
       await fetch("/api/logout", {
@@ -213,17 +231,24 @@ export default function Home() {
     }
   };
 
-  // 現在の検索・絞込・ページ条件でAPIから1ページ分だけ取得する
+  // 現在の検索・絞込・ページ条件でAPIから1ページ分だけ取得する。
+  // /api/mails?mode=list に現在の画面上の条件をすべてクエリパラメータとして渡し、
+  // 検索・絞込・ページングの実処理はサーバー側(Supabase)に任せる方式
+  // (以前はクライアント側で全件保持してフィルタしていたが、件数増加でレスポンスが
+  // 重くなったためサーバーサイド検索・ページングへ変更した)
   const fetchPage = useCallback(async () => {
+    // 検索条件変更中に前のリクエストが後から返ってきて画面を上書きしないよう、
+    // リクエストごとにIDを振り、結果を反映する前に「最新のリクエストか」を確認する
     const requestId = ++fetchRequestIdRef.current;
     setLoading(true);
 
     try {
       const params = new URLSearchParams();
-      params.set("mode", "list");
+      params.set("mode", "list"); // 一覧表示用モード(グラフ集計用・CSV書き出し用とはmodeで区別)
       params.set("page", String(currentPage));
       params.set("pageSize", String(PAGE_SIZE));
-      if (debouncedQuery) params.set("q", debouncedQuery);
+      if (debouncedQuery) params.set("q", debouncedQuery); // デバウンス後の検索語のみ送信
+      // 地域タブは「全件」表示のときだけ意味を持つため、viewModeが"all"の場合のみ付与する
       if (viewMode === "all" && selectedRegion !== "すべて") {
         params.set("region", selectedRegion);
       }
@@ -234,6 +259,8 @@ export default function Home() {
       params.set("hideClosed", hideClosed ? "1" : "0");
       params.set("viewMode", viewMode);
       appliedIds.forEach((id) => params.append("appliedIds", String(id)));
+      // お気に入り/履歴タブは、ローカルストレージ上のID一覧をサーバーに渡して
+      // 「そのIDに一致する案件だけ」を絞り込んでもらう(サーバー側にはお気に入り等の永続情報がないため)
       if (viewMode === "favorites") {
         favoriteIds.forEach((id) => params.append("ids", String(id)));
       } else if (viewMode === "history") {
@@ -254,6 +281,7 @@ export default function Home() {
       setProjects(
         payload.data.map((item) => ({
           ...item,
+          // お気に入り状態はローカルストレージ側が正なので、取得結果にクライアント側で付与し直す
           favorite: favoriteIds.includes(item.id),
           isExpiringSoon: computeIsExpiringSoon(item.created_at),
         })),
@@ -281,12 +309,16 @@ export default function Home() {
     historyIds,
   ]);
 
+  // 検索・絞込・ページ条件のいずれかが変わるたびにfetchPageを呼び直す。
+  // ログイン確認が完了するまでは無駄なリクエストを送らない
   useEffect(() => {
     if (!authChecked || !user) return;
     fetchPage();
   }, [authChecked, user, fetchPage]);
 
-  // 駅名サジェスト取得
+  // 駅名サジェスト取得。
+  // 外部の駅データAPI(HeartRails Express)を都道府県ごとに叩き、入力中の文字列を含む駅名を絞り込む。
+  // 都道府県が未選択の場合は「大阪府」をデフォルトの検索対象とする
   const fetchStations = useCallback(
     async (keyword) => {
       if (!keyword) {
@@ -295,6 +327,7 @@ export default function Home() {
       }
       try {
         const targetPrefs = selectedPrefs.length ? selectedPrefs : ["大阪府"];
+        // 選択都道府県が多いとリクエスト数が増えすぎるため、先頭5件までに制限
         const responses = await Promise.all(
           targetPrefs.slice(0, 5).map((pref) =>
             fetch(
@@ -326,19 +359,24 @@ export default function Home() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentItems = projects;
 
-  // ページネーション範囲計算
+  // ページネーション範囲計算。
+  // 現在ページの前後2ページ(siblingCount)+先頭/末尾ページ+「...」分を表示する、
+  // よくある「省略記号付きページャー」のためのページ番号配列を組み立てる
   const paginationRange = useMemo(() => {
     const siblingCount = 2;
     const totalPageNumbers = siblingCount * 2 + 5;
+    // 総ページ数が表示可能な最大数以下なら、省略なしで全ページ番号を返す
     if (totalPageNumbers >= totalPages)
       return Array.from({ length: totalPages }, (_, i) => i + 1);
     const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
     const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
     const shouldShowLeftDots = leftSiblingIndex > 2;
     const shouldShowRightDots = rightSiblingIndex < totalPages - 2;
+    // 先頭付近にいる場合: 左側の「...」は不要、右側だけ「...」を表示
     if (!shouldShowLeftDots && shouldShowRightDots) {
       return Array.from({ length: 3 + 2 * siblingCount }, (_, i) => i + 1);
     }
+    // 末尾付近にいる場合: 右側の「...」は不要、左側だけ「...」を表示
     if (shouldShowLeftDots && !shouldShowRightDots) {
       const rightItemCount = 3 + 2 * siblingCount;
       return Array.from(
@@ -346,6 +384,7 @@ export default function Home() {
         (_, i) => totalPages - rightItemCount + i + 1,
       );
     }
+    // 中間にいる場合: 両側に「...」を表示し、現在ページ周辺だけ番号を出す
     if (shouldShowLeftDots && shouldShowRightDots) {
       return Array.from(
         { length: rightSiblingIndex - leftSiblingIndex + 1 },
@@ -358,6 +397,7 @@ export default function Home() {
     setCurrentPage(pageNumber);
   };
 
+  // 都道府県/スキルなどの複数選択トグル。絞込条件が変わるので1ページ目に戻す
   const toggleSelection = (item, selected, setter) => {
     setter(
       selected.includes(item)
@@ -368,6 +408,7 @@ export default function Home() {
     setCurrentPage(1);
   };
 
+  // ページ切り替え時に一覧の先頭が見えるようスクロールを戻す
   useEffect(() => {
     window.scrollTo({
       top: 0,
@@ -390,6 +431,7 @@ export default function Home() {
     );
   };
 
+  // 応募済みフラグの切替(ローカルストレージにのみ保存。サーバー側の状態は変更しない)
   const toggleApplied = (event, id) => {
     event.preventDefault();
     event.stopPropagation();
@@ -400,6 +442,8 @@ export default function Home() {
     storage.set("appliedIds", updated);
   };
 
+  // 案件詳細モーダルを開き、閲覧履歴・既読状態をローカルストレージに記録する
+  // (履歴は最新50件までに制限)
   const openProject = (project) => {
     setSelectedProject(project);
     const historyData = storage.get("history");
@@ -416,6 +460,8 @@ export default function Home() {
     }
   };
 
+  // 案件本文からメールアドレスらしき文字列を正規表現で抜き出し、mailtoリンクを開く
+  // (CCアドレスが設定されていればCCとして付与する)
   const handleSendEmail = (event, project) => {
     event.preventDefault();
     event.stopPropagation();
@@ -427,6 +473,7 @@ export default function Home() {
       : `mailto:${targetEmail}`;
   };
 
+  // 案件削除APIを呼び出す。削除対象を開いていた場合は詳細モーダルも閉じる
   const handleExecuteDelete = async () => {
     if (!deleteTargetId) return;
     try {
@@ -450,6 +497,7 @@ export default function Home() {
     }
   };
 
+  // 選択中の地域タブに応じて、絞込パネルに表示する都道府県候補を切り替える
   const filterablePrefectures = useMemo(() => {
     if (selectedRegion === "すべて") {
       return regionalPrefectures.flatMap((r) => r.prefs);
@@ -470,6 +518,7 @@ export default function Home() {
   return (
     <div style={styles.page}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      {/* 自動CSV書き出しの結果を知らせるトースト通知(右下固定) */}
       {autoExportNotice && (
         <div
           style={{
@@ -505,6 +554,7 @@ export default function Home() {
           </button>
         </div>
       )}
+      {/* ヘッダーナビゲーション: ロゴ、表示タブ切替(すべて/お気に入り/履歴等)、グラフ・自動実行結果へのリンク */}
       <nav style={styles.nav}>
         <div style={{ ...styles.navInner, justifyContent: "space-between" }}>
           <div
@@ -586,6 +636,7 @@ export default function Home() {
               </button>
             </div>
           </div>
+          {/* 地域タブとログアウトボタンは「すべて」表示モードのときだけ表示する */}
           {viewMode === "all" && (
             <div
               style={{ display: "flex", height: "100%", alignItems: "center" }}
@@ -646,6 +697,7 @@ export default function Home() {
           boxSizing: "border-box",
         }}
       >
+        {/* サイドバー: カテゴリー(業務系/インフラ/組み込み/その他)による絞込 */}
         <aside style={styles.sidebar}>
           <h2
             style={{
@@ -698,6 +750,7 @@ export default function Home() {
           </div>
         </aside>
         <main style={{ flexGrow: 1, maxWidth: 1600 }}>
+          {/* 検索・絞込パネルも「すべて」表示モードのときだけ表示する(お気に入り/履歴タブでは非表示) */}
           {viewMode === "all" && (
             <div
               style={{
@@ -714,6 +767,8 @@ export default function Home() {
                   placeholder="キーワード・駅名で検索"
                   value={searchQuery}
                   onChange={(e) => {
+                    // 入力のたびに検索語・駅名サジェストを更新し、1ページ目に戻す。
+                    // 実際のAPI呼び出しはdebouncedQuery側で行われる(入力停止後350ms)
                     setSearchQuery(e.target.value);
                     setCurrentPage(1);
                     fetchStations(e.target.value);
@@ -857,6 +912,7 @@ export default function Home() {
                   </label>
                 </div>
               </div>
+              {/* 詳細絞り込みパネル: 都道府県・スキルカテゴリの複数選択(トグル式) */}
               {showFilters && (
                 <div
                   style={{
@@ -961,6 +1017,7 @@ export default function Home() {
               )}
             </div>
           )}
+          {/* 上部ページャー(件数表示の上にも配置し、一覧の下までスクロールしなくても移動できるようにする) */}
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
@@ -968,6 +1025,7 @@ export default function Home() {
             changePage={changePage}
             style={{ marginTop: 0, marginBottom: 40 }}
           />
+          {/* サーバーから返された現在条件での総件数(365日カットオフ撤廃後は該当する全件数を反映) */}
           <div
             style={{
               marginBottom: 15,
@@ -1028,6 +1086,7 @@ export default function Home() {
           )}
         </main>
       </div>
+      {/* 案件詳細モーダル。本文HTMLはメール由来のため、フルHTMLの場合はiframeにサンドボックスして表示する */}
       {selectedProject && (
         <div
           style={styles.modalOverlay}
@@ -1091,6 +1150,7 @@ export default function Home() {
                   .join(" / ")}
               </div>
               {(() => {
+                // attachmentsはDB上で配列またはJSON文字列のどちらでも来うるため、両方に対応する
                 const pAttachments = !selectedProject.attachments
                   ? []
                   : Array.isArray(selectedProject.attachments)
@@ -1168,6 +1228,7 @@ export default function Home() {
               {selectedProject?.content ? (
                 (() => {
                   const content = selectedProject.content;
+                  // メール本文がHTMLメールかプレーンテキストかをタグの有無で判定する
                   const isFullHtml = /<[a-z][\s\S]*>/i.test(content);
 
                   if (isFullHtml) {
@@ -1219,6 +1280,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* 削除確認モーダル。「削除する」押下でhandleExecuteDeleteを実行し、一覧を再取得する */}
       {deleteTargetId && (
         <div
           style={styles.modalOverlay}

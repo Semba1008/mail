@@ -1,4 +1,5 @@
-// スキルカテゴリとそれぞれのスキルリスト
+// 案件検索フォームのスキル絞り込みで使う、カテゴリごとのスキルリスト
+// pages/index.js の検索フォームから参照される
 export const skillCategories = [
   {
     label: "Language / Backend",

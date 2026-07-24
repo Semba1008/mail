@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 
+// 初回パスワード設定画面 (/setup-password)
+// アカウント発行後、初めてログインする前にパスワードを設定するための画面。
+// メールアドレスと新しいパスワードを入力し、/api/setup-password で登録する。
+// reset-password.js とほぼ同じ画面構成だが、こちらは初回設定フロー用
 export default function SetupPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -12,11 +16,13 @@ export default function SetupPasswordPage() {
   const handleSetupPassword = async () => {
     setErrorMessage("");
 
+    // パスワードと確認用パスワードの一致チェック
     if (password !== confirmPassword) {
       setErrorMessage("パスワードが一致しません");
       return;
     }
 
+    // パスワード要件チェック: 8文字以上・大文字/小文字/数字を各1文字以上含む
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password)) {
       setErrorMessage("パスワード要件を満たしていません");
       return;
@@ -25,6 +31,7 @@ export default function SetupPasswordPage() {
     try {
       setLoading(true);
 
+      // 初回設定APIへ新パスワードを送信。Cookie(セッション)をやり取りするため credentials: "include"
       const res = await fetch("/api/setup-password", {
         method: "POST",
         headers: {
@@ -44,6 +51,7 @@ export default function SetupPasswordPage() {
         return;
       }
 
+      // 設定成功。ログイン画面へ遷移(クエリでログイン画面に成功状態を伝える)
       router.push("/login?setup=success");
     } catch {
       setErrorMessage("設定に失敗しました");
@@ -83,6 +91,7 @@ export default function SetupPasswordPage() {
 
         {errorMessage && <p style={style.error}>{errorMessage}</p>}
 
+        {/* 設定中、またはいずれかの入力欄が未入力の間はボタンを無効化 */}
         <button
           onClick={handleSetupPassword}
           disabled={loading || !email.trim() || !password || !confirmPassword}
@@ -100,6 +109,7 @@ export default function SetupPasswordPage() {
         >
           {loading ? "設定中..." : "パスワード設定"}
         </button>
+        {/* 入力中のパスワードが各要件を満たしているかをリアルタイムに表示 */}
         <p style={style.hint}>
           パスワード条件：
           <br />

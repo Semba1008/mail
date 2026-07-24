@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 
+// ログイン画面 (/login)
+// メールアドレス・パスワードを入力して /api/login にPOSTし、
+// 成功時はトップページへ遷移する。初回ログイン・パスワード再設定への導線もここに置く
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -9,9 +12,12 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   // ログイン処理
   const handleLogin = async () => {
+    // 二重送信防止(ボタン連打などでリクエストが重複しないようガード)
     if (loading) return;
     setErrorMessage("");
 
+    // 未入力チェック(本来はどちらか一方だけ未入力の場合も弾きたいが、
+    // 現状は両方とも空のケースのみ判定している点に注意)
     if (!email && !password) {
       setErrorMessage("メールアドレスとパスワードを入力してください");
       return;
@@ -20,6 +26,7 @@ export default function LoginPage() {
     try {
       setLoading(true);
 
+      // 認証APIへログイン情報を送信。Cookie(セッション)をやり取りするため credentials: "include"
       const res = await fetch("/api/login", {
         method: "POST",
         headers: {
@@ -34,10 +41,12 @@ export default function LoginPage() {
 
       let result = null;
 
+      // レスポンスがJSONの場合のみパースする(エラーページなどHTMLが返るケースを考慮)
       if (res.headers.get("content-type")?.includes("application/json")) {
         result = await res.json().catch(() => null);
       }
       if (!res.ok) {
+        // サーバー側から返るエラーコードに応じてメッセージを出し分け
         switch (result?.error) {
           case "NOT_ADMIN":
             setErrorMessage("管理者ではありません");
@@ -58,6 +67,7 @@ export default function LoginPage() {
         return;
       }
 
+      // ログイン成功。トップページへ遷移
       router.push("/");
     } catch (error) {
       console.error(error);
@@ -93,6 +103,7 @@ export default function LoginPage() {
 
         {errorMessage && <div style={styles.error}>{errorMessage}</div>}
 
+        {/* ログイン中、またはメール・パスワードいずれか未入力の間はボタンを無効化 */}
         <button
           onClick={handleLogin}
           disabled={loading || !email.trim() || !password}

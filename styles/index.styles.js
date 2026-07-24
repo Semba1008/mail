@@ -1,11 +1,14 @@
-// スタイル定義
+// トップページ(pages/index.js)や案件カード・ページネーション等の各コンポーネントで
+// 共通利用する、インラインstyle用のスタイル定義オブジェクト
 export const styles = {
+  // ページ全体のベーススタイル
   page: {
     backgroundColor: "#f7fafc",
     minHeight: "100vh",
     color: "#2d3748",
     fontFamily: "sans-serif",
   },
+  // 画面上部の固定(sticky)ナビゲーションバー
   nav: {
     backgroundColor: "#fff",
     position: "sticky",
@@ -20,6 +23,7 @@ export const styles = {
     alignItems: "center",
   },
   sidebar: { width: 220, flexShrink: 0 },
+  // 案件カードの共通デザイン
   card: {
     backgroundColor: "#fff",
     borderRadius: 10,
@@ -36,6 +40,7 @@ export const styles = {
     borderRadius: 4,
     fontWeight: "bold",
   },
+  // 主要アクション用ボタン(応募するなど)
   primaryButton: {
     padding: 10,
     backgroundColor: "#1a365d",
@@ -45,6 +50,7 @@ export const styles = {
     cursor: "pointer",
     fontWeight: "bold",
   },
+  // 補助アクション用ボタン
   secondaryButton: {
     padding: 10,
     backgroundColor: "#3182ce",
@@ -54,6 +60,7 @@ export const styles = {
     cursor: "pointer",
     fontWeight: "bold",
   },
+  // ページネーションのページ番号ボタン
   pageBtn: {
     padding: "8px 14px",
     borderRadius: 6,
@@ -65,6 +72,7 @@ export const styles = {
     fontSize: "0.9rem",
     transition: "all 0.2s",
   },
+  // モーダル(案件詳細など)の背景オーバーレイと本体
   modalOverlay: {
     position: "fixed",
     top: 0,
@@ -88,6 +96,7 @@ export const styles = {
     overflowY: "auto",
     position: "relative",
   },
+  // データ取得中に表示するローディングスピナー
   spinner: {
     width: 40,
     height: 40,
@@ -97,6 +106,7 @@ export const styles = {
     animation: "spin 1s linear infinite",
     margin: "40px auto",
   },
+  // 添付ファイル表示部分
   attachmentSection: {
     marginTop: 15,
     paddingTop: 12,
